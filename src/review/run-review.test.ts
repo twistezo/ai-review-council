@@ -72,6 +72,10 @@ describe('trimToReport', () => {
     expect(trimToReport('All findings confirmed.\n\n# Przegląd\n## Podsumowanie')).toBe('# Przegląd\n## Podsumowanie')
   })
 
+  it('takes the title outside code blocks, not a comment inside one', () => {
+    expect(trimToReport('Checked:\n```sh\n# list files\nls\n```\n# Review\n### One')).toBe('# Review\n### One')
+  })
+
   it('keeps a report that starts with its title or has none', () => {
     expect(trimToReport('# Review\n### One')).toBe('# Review\n### One')
     expect(trimToReport('\nNo heading at all\n')).toBe('No heading at all')
@@ -82,6 +86,10 @@ describe('countFindings', () => {
   it('counts level-3 headings and nothing else', () => {
     expect(countFindings('# Review\n## Findings\n### One\n- x\n### Two\n## Open questions')).toBe(2)
     expect(countFindings('No findings.')).toBe(0)
+  })
+
+  it('ignores headings inside code blocks', () => {
+    expect(countFindings('# Review\n### One\n```md\n### Not a finding\n```\n~~~\n### Nor this\n~~~\n### Two')).toBe(2)
   })
 })
 
@@ -155,6 +163,18 @@ describe('runReview', () => {
       '### Finding',
       '### Finding',
     ])
+  })
+
+  it('starts no agents after a cancel while the diff was prepared, and still cleans up', async () => {
+    const controller = new AbortController()
+    const run = setup(() => ({ ok: true, report: '# Review', sessionId: null }))
+    controller.abort()
+
+    const result = await runReview(session, run.dependencies, run.onProgress, controller.signal)
+
+    expect(result).toEqual({ kind: 'cancelled' })
+    expect(run.launches).toEqual([])
+    expect(run.cleanup).toHaveBeenCalledOnce()
   })
 
   it('reports a cancelled run and still cleans up', async () => {

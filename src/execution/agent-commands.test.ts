@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
+import { secretReadDenyRules } from '../scope/excluded-files.js'
 import type { AgentLaunch } from './agent-commands.js'
 import { buildClaudeProcess, buildCodexProcess } from './agent-commands.js'
 
@@ -29,6 +30,10 @@ describe('buildClaudeProcess', () => {
         '--permission-mode',
         'dontAsk',
         '--strict-mcp-config',
+        '--settings',
+        '{"disableAllHooks":true,"apiKeyHelper":""}',
+        '--disallowedTools',
+        secretReadDenyRules.join(','),
         '--add-dir',
         '/tmp/council-diff',
         '--append-system-prompt',
@@ -40,6 +45,12 @@ describe('buildClaudeProcess', () => {
       cwd: '/repo',
       stdin: 'Review this change',
     })
+  })
+
+  it('denies reading secret files anywhere in the repository', () => {
+    expect(secretReadDenyRules).toEqual(
+      expect.arrayContaining(['Read(**/.env)', 'Read(**/.env.*)', 'Read(**/id_rsa)', 'Read(**/*.pem)']),
+    )
   })
 
   it('omits the effort for a model without effort levels', () => {

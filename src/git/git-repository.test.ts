@@ -74,7 +74,7 @@ describe('createGitRepository', () => {
   it('reads the diff of the given paths only, and nothing for no paths', async () => {
     const git = createGitRepository(
       fakeRunCommand({
-        [`git diff --find-renames ${base} -- src/a.ts src/b.ts`]: commandResult({ stdout: 'diff --git a/src/a.ts\n' }),
+        [`git --literal-pathspecs diff --find-renames ${base} -- src/a.ts src/b.ts`]: commandResult({ stdout: 'diff --git a/src/a.ts\n' }),
       }),
     )
 

@@ -5,7 +5,7 @@ import { partitionReviewFiles } from './excluded-files.js'
 
 export type ScopeRequest = { kind: 'uncommitted' } | { kind: 'since-commit'; commitRef: string }
 
-export type ScopeResult = { ok: true; scope: ReviewScope } | { ok: false; error: string }
+type ScopeResult = { ok: true; scope: ReviewScope } | { ok: false; error: string }
 
 export const buildReviewScope = async (
   git: GitRepository,

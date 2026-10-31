@@ -25,6 +25,8 @@ export type GitRepository = {
 }
 
 const hexDigits = '0123456789abcdef'
+// A large change or a long history takes longer than the default command timeout.
+const diffTimeoutMs = 120_000
 
 export const isCommitHashFormat = (value: string): boolean =>
   value.length >= 4 &&
@@ -32,8 +34,8 @@ export const isCommitHashFormat = (value: string): boolean =>
   [...value.toLowerCase()].every((character) => hexDigits.includes(character))
 
 export const createGitRepository = (run: RunCommand): GitRepository => {
-  const git = async (cwd: string, args: readonly string[]): Promise<string | null> => {
-    const result = await run('git', args, { cwd })
+  const git = async (cwd: string, args: readonly string[], timeoutMs?: number): Promise<string | null> => {
+    const result = await run('git', args, { cwd, timeoutMs })
 
     return isSuccessful(result) ? result.stdout : null
   }
@@ -104,7 +106,12 @@ export const createGitRepository = (run: RunCommand): GitRepository => {
       if (paths.length === 0) {
         return ''
       }
-      const output = await git(root, ['diff', '--find-renames', baseHash, '--', ...paths])
+      // Paths are file names, not patterns: a file named `*` or `[id].tsx` must not pull in others.
+      const output = await git(
+        root,
+        ['--literal-pathspecs', 'diff', '--find-renames', baseHash, '--', ...paths],
+        diffTimeoutMs,
+      )
       if (output === null) {
         throw new Error('Could not read the diff from Git')
       }

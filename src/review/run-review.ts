@@ -16,7 +16,7 @@ export type ReviewRunDependencies = {
   now: () => number
 }
 
-export type ProgressUpdate = (agentId: string, change: (progress: AgentProgress) => AgentProgress) => void
+type ProgressUpdate = (agentId: string, change: (progress: AgentProgress) => AgentProgress) => void
 
 export type ReviewRunResult =
   | { kind: 'reported'; report: string; reviewerReports: ReviewerReport[] }
@@ -33,17 +33,40 @@ export const numberReviewers = (reviewers: readonly ReviewerAssignment[]): Numbe
     .sort((left, right) => compareConfigurations(left.configuration, right.configuration))
     .map((reviewer, index) => ({ ...reviewer, number: index + 1 }))
 
+const isFence = (line: string): boolean => {
+  const trimmed = line.trimStart()
+
+  return trimmed.startsWith('```') || trimmed.startsWith('~~~')
+}
+
+// Lines outside fenced code blocks; a `#` in a code sample is not a heading.
+const proseLines = (text: string): { line: string; index: number }[] => {
+  let isInCodeBlock = false
+
+  return text
+    .split('\n')
+    .map((line, index) => ({ line, index }))
+    .filter(({ line }) => {
+      if (isFence(line)) {
+        isInCodeBlock = !isInCodeBlock
+
+        return false
+      }
+
+      return !isInCodeBlock
+    })
+}
+
 // The council report starts at its title; any remark the model writes before it is dropped.
 export const trimToReport = (text: string): string => {
-  const lines = text.split('\n')
-  const titleIndex = lines.findIndex((line) => line.startsWith('# '))
+  const titleIndex = proseLines(text).find(({ line }) => line.startsWith('# '))?.index ?? 0
 
-  return titleIndex <= 0 ? text.trim() : lines.slice(titleIndex).join('\n').trim()
+  return text.split('\n').slice(titleIndex).join('\n').trim()
 }
 
 // Each finding is a level-3 heading in both report formats.
 export const countFindings = (report: string): number =>
-  report.split('\n').filter((line) => line.startsWith('### ')).length
+  proseLines(report).filter(({ line }) => line.startsWith('### ')).length
 
 const findingsNote = (report: string): string => {
   const count = countFindings(report)
@@ -89,6 +112,10 @@ export const runReview = async (
   }
 
   try {
+    // A cancel while the diff was being prepared starts no agents.
+    if (signal?.aborted) {
+      return { kind: 'cancelled' }
+    }
     const reviewerReports = await Promise.all(
       reviewers.map(async (reviewer): Promise<ReviewerReport> => {
         const result = await runOne(

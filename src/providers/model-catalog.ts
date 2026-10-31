@@ -29,7 +29,7 @@ export const isSameModel = (model: CatalogModel, configuration: AgentConfigurati
   model.provider === configuration.provider && model.id === configuration.model
 
 // Display names only; the CLI identifier stays internal.
-export const formatModel = (model: Pick<CatalogModel, 'provider' | 'label'>): string =>
+const formatModel = (model: Pick<CatalogModel, 'provider' | 'label'>): string =>
   `${providerDisplayNames[model.provider]} · ${model.label}`
 
 export const formatEffort = (effort: string | null): string => effort ?? 'default'

@@ -98,6 +98,8 @@ export const runAgentProcess = (
       clearTimeout(timer)
       signal?.removeEventListener('abort', cancel)
       if (pid !== undefined) {
+        // The CLI is gone, but a process it started may outlive it or ignore SIGTERM; the group goes with it.
+        killGroup(pid, 'SIGKILL')
         runningAgents.delete(pid)
       }
       markStopped()

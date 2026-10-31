@@ -2,6 +2,24 @@
 
 All notable changes to this project. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## 1.0.1 - 2026-10-31
+
+### Security
+
+- Claude Code agents ignore hooks and `apiKeyHelper` from the reviewed repository's settings, which would run shell commands; its `CLAUDE.md` and skills still load.
+- Claude Code agents cannot read likely secret files, in the diff or not; `.env.example` and other templates are denied too.
+- A secret file renamed to an innocent name, or the reverse, stays out of the diff.
+- Git reads changed paths literally, so a file named `*` or `[id].tsx` cannot pull other files into the diff.
+
+### Fixed
+
+- `Ctrl+C` while the diff is prepared no longer starts agents after the cleanup message.
+- The diff may take up to 2 min on large changes instead of failing after 15 s.
+- Headings inside code blocks no longer count as findings or as the report title.
+- The README lists exit code `2` for invalid options.
+- Processes an agent started are killed when it ends, also those that ignore `SIGTERM`.
+- A command that ignores `SIGTERM` after its timeout no longer holds up the requirements check.
+
 ## 1.0.0 - 2026-10-30
 
 ### Added
@@ -32,6 +50,10 @@ All notable changes to this project. The format follows [Keep a Changelog](https
 
 ### Fixed
 
+- `Ctrl+C` while the diff is prepared no longer starts agents after the cleanup message.
+- The diff may take up to 2 min on large changes instead of failing after 15 s.
+- Headings inside code blocks no longer count as findings or as the report title.
+- The README lists exit code `2` for invalid options.
 - Closing the terminal or stopping the app with `kill` during a review left the agents running; they are now stopped with the app.
 
 ## 0.7.0 - 2026-10-30

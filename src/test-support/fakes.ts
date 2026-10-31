@@ -20,7 +20,7 @@ export const fakeRunCommand =
   async (command, args) =>
     responses[[command, ...args].join(' ')] ?? commandResult({ exitCode: null, failure: 'not-found' })
 
-export const fakeRepositoryState = (overrides: Partial<RepositoryState> = {}): RepositoryState => ({
+const fakeRepositoryState = (overrides: Partial<RepositoryState> = {}): RepositoryState => ({
   root: '/repo',
   branch: 'main',
   head: headCommit,

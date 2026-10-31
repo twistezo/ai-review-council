@@ -79,7 +79,7 @@ type WizardState = {
   running: ReviewSessionDraft | null
 }
 
-export const buildSessionDraft = (state: WizardState, timeoutMinutes: number): ReviewSessionDraft | null => {
+const buildSessionDraft = (state: WizardState, timeoutMinutes: number): ReviewSessionDraft | null => {
   if (state.repository === null) {
     return null
   }

@@ -1,7 +1,7 @@
 import { killAllAgents, takeCancelledCount, waitForAgentsToStop } from './execution/run-agent-process.js'
 import { removeActiveWorkspaces, removeActiveWorkspacesSync } from './review/review-workspace.js'
 
-export type CleanupSummary = {
+type CleanupSummary = {
   agents: number
   workspaces: number
 }

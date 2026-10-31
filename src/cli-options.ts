@@ -13,7 +13,7 @@ import {
   timeoutMinutesSchema,
 } from './domain/review-session.js'
 
-export type CliOptions = {
+type CliOptions = {
   directory: string | null
   language: ReportLanguage | null
   scope: ScopeRequest | null
@@ -22,7 +22,7 @@ export type CliOptions = {
   showHelp: boolean
 }
 
-export type CliOptionsResult = { ok: true; options: CliOptions } | { ok: false; error: string }
+type CliOptionsResult = { ok: true; options: CliOptions } | { ok: false; error: string }
 
 export const usage = `Usage: ai-review-council [options]
 

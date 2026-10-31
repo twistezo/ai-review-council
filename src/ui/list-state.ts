@@ -1,6 +1,6 @@
 export const clampIndex = (index: number, length: number): number => Math.max(0, Math.min(index, length - 1))
 
-export type ListWindow = {
+type ListWindow = {
   start: number
   end: number
 }

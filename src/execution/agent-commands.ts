@@ -1,4 +1,5 @@
 import type { AgentConfiguration, ProviderId } from '../domain/review-session.js'
+import { secretReadDenyRules } from '../scope/excluded-files.js'
 import type { ParseAgentLine } from './agent-events.js'
 import { parseClaudeLine, parseCodexLine } from './agent-events.js'
 
@@ -22,6 +23,8 @@ export type AgentProcessSpec = {
 }
 
 // Read and search only: no shell, no MCP servers, no permission prompts (verified in the CLI probes).
+// Hooks and `apiKeyHelper` from the reviewed repository's settings would run shell commands, so both are off;
+// its `CLAUDE.md` and skills still load.
 export const buildClaudeProcess = ({
   configuration,
   cwd,
@@ -40,6 +43,10 @@ export const buildClaudeProcess = ({
     '--permission-mode',
     'dontAsk',
     '--strict-mcp-config',
+    '--settings',
+    JSON.stringify({ disableAllHooks: true, apiKeyHelper: '' }),
+    '--disallowedTools',
+    secretReadDenyRules.join(','),
     ...readableDirectories.flatMap((directory) => ['--add-dir', directory]),
     '--append-system-prompt',
     instructions,
@@ -53,7 +60,7 @@ export const buildClaudeProcess = ({
 
 // Extras Codex loads from the user config; turning them off leaves file access through a read-only shell.
 // `code_mode_host` stays on: every Codex tool call, reading included, goes through it.
-export const disabledCodexFeatures = [
+const disabledCodexFeatures = [
   'computer_use',
   'browser_use',
   'browser_use_external',

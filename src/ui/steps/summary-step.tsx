@@ -11,7 +11,7 @@ import { SelectList } from '../components/select-list.js'
 import { StepFrame } from '../components/step-frame.js'
 import { theme } from '../theme.js'
 
-export type SummaryAction = 'start' | 'back' | 'cancel'
+type SummaryAction = 'start' | 'back' | 'cancel'
 
 type SummaryStepProps = {
   session: ReviewSessionDraft

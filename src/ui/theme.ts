@@ -16,4 +16,4 @@ export const theme = {
   muted: 'gray',
 } as const
 
-export type ThemeRole = keyof typeof theme
+type ThemeRole = keyof typeof theme

@@ -27,7 +27,7 @@ const rpcResponseSchema = z.object({
   error: z.object({ message: z.string() }).optional(),
 })
 
-export type CodexModelPage = {
+type CodexModelPage = {
   models: ProviderModel[]
   nextCursor: string | null
 }

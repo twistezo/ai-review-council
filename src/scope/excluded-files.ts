@@ -27,12 +27,26 @@ export const isLikelySecretFile = (filePath: string): boolean => {
   )
 }
 
-export type PartitionedFiles = {
+// The same names as Claude Code deny rules, so an agent cannot read them outside the diff either.
+// Rules cannot make exceptions, so env templates such as `.env.example` are denied too.
+export const secretReadDenyRules: readonly string[] = [
+  ...secretFileNames,
+  '.env.*',
+  ...secretExtensions.map((extension) => `*${extension}`),
+].map((pattern) => `Read(**/${pattern})`)
+
+type PartitionedFiles = {
   included: ChangedFile[]
   excluded: string[]
 }
 
+// A rename touches two paths; a secret on either side keeps the file out of the diff.
+const touchesSecretFile = (file: ChangedFile): boolean =>
+  isLikelySecretFile(file.path) || (file.previousPath !== null && isLikelySecretFile(file.previousPath))
+
 export const partitionReviewFiles = (files: readonly ChangedFile[]): PartitionedFiles => ({
-  included: files.filter((file) => !isLikelySecretFile(file.path)),
-  excluded: files.filter((file) => isLikelySecretFile(file.path)).map((file) => file.path),
+  included: files.filter((file) => !touchesSecretFile(file)),
+  excluded: files
+    .filter(touchesSecretFile)
+    .map((file) => (file.previousPath === null ? file.path : `${file.previousPath} -> ${file.path}`)),
 })

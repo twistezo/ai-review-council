@@ -1,6 +1,6 @@
 {
   "name": "ai-review-council",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Terminal app that runs independent Codex and Claude Code reviewers and merges their results",
   "license": "MIT",
   "type": "module",

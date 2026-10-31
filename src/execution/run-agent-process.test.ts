@@ -5,6 +5,18 @@ import { parseCodexLine } from './agent-events.js'
 import type { AgentProcessSpec } from './agent-commands.js'
 import { runAgentProcess } from './run-agent-process.js'
 
+const isAlive = (pid: number): boolean => {
+  try {
+    process.kill(pid, 0)
+
+    return true
+  } catch {
+    return false
+  }
+}
+
+const delay = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms))
+
 // A stand-in CLI: a Node script printing Codex-style JSON lines.
 const fakeAgent = (script: string): AgentProcessSpec => ({
   command: process.execPath,
@@ -93,6 +105,19 @@ describe('runAgentProcess', () => {
     setTimeout(() => controller.abort(), 100)
 
     expect(await run).toMatchObject({ ok: false, error: 'Cancelled' })
+  })
+
+  it('stops a process the agent started that ignores SIGTERM, once the agent is gone', async () => {
+    // The descendant has its own stdio, so the agent closing does not wait for it.
+    const spawnStubborn = `const child = require('node:child_process').spawn(process.execPath, ['-e', "process.on('SIGTERM', () => {}); setInterval(() => {}, 1000);"], { stdio: 'ignore' });
+      console.log(JSON.stringify({ type: 'thread.started', thread_id: String(child.pid) }));
+      setInterval(() => {}, 1000);`
+    const result = await runAgentProcess(fakeAgent(spawnStubborn), parseCodexLine, { timeoutMs: 500 })
+    const descendantPid = Number(result.sessionId)
+    await delay(100)
+
+    expect(result).toMatchObject({ ok: false, error: 'Timed out after 1 s' })
+    expect(isAlive(descendantPid)).toBe(false)
   })
 
   it('reports a missing CLI', async () => {

@@ -2,7 +2,7 @@ import type { ReviewerReport } from './review-messages.js'
 import { buildFallbackReport, reviewerLabel } from './review-messages.js'
 import type { ReviewRunResult } from './run-review.js'
 
-export type ReviewOutput = {
+type ReviewOutput = {
   // the copyable Markdown report
   stdout: string | null
   stderr: string | null

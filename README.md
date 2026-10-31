@@ -42,6 +42,7 @@ The review covers the branch checked out; switch branches before starting.
 |---|---|
 | `0` | Report printed; failed reviewers named on stderr |
 | `1` | Requirements not met, or no verified report |
+| `2` | Invalid options; usage printed on stderr |
 | `130` / `129` / `143` | `Ctrl+C` / terminal closed / `kill`; agents stop and temp files go, confirmed by a message where the terminal remains |
 
 ## Agents

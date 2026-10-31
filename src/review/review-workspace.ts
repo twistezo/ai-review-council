@@ -6,7 +6,7 @@ import path from 'node:path'
 import type { ReviewScope } from '../domain/review-session.js'
 import type { GitRepository } from '../git/git-repository.js'
 
-export type ReviewWorkspace = {
+type ReviewWorkspace = {
   // outside the repository; agents get read access to it
   directory: string
   diffPath: string

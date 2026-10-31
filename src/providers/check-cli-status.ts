@@ -3,7 +3,7 @@ import type { RunCommand } from '../process/run-command.js'
 import { isSuccessful } from '../process/run-command.js'
 import type { ProviderStatus } from './provider-adapter.js'
 
-export type CliStatusCheck = {
+type CliStatusCheck = {
   provider: ProviderId
   command: string
   loginStatusArgs: readonly string[]

@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process'
 
-export type CommandFailure = 'not-found' | 'timeout' | 'spawn-error'
+type CommandFailure = 'not-found' | 'timeout' | 'spawn-error'
 
 export type CommandResult = {
   exitCode: number | null
@@ -9,7 +9,7 @@ export type CommandResult = {
   failure: CommandFailure | null
 }
 
-export type RunCommandOptions = {
+type RunCommandOptions = {
   cwd?: string
   timeoutMs?: number
 }
@@ -21,6 +21,8 @@ export type RunCommand = (
 ) => Promise<CommandResult>
 
 const defaultTimeoutMs = 15_000
+// A command that ignores SIGTERM is killed after this, so a timeout always ends the wait.
+const killGraceMs = 2_000
 
 // Arguments are passed as an array, never through a shell.
 export const runCommand: RunCommand = (command, args, options = {}) =>
@@ -30,10 +32,16 @@ export const runCommand: RunCommand = (command, args, options = {}) =>
     let stderr = ''
     let failure: CommandFailure | null = null
 
+    let killTimer: NodeJS.Timeout | undefined
     const timer = setTimeout(() => {
       failure = 'timeout'
       child.kill('SIGTERM')
+      killTimer = setTimeout(() => child.kill('SIGKILL'), killGraceMs)
     }, options.timeoutMs ?? defaultTimeoutMs)
+    const clearTimers = (): void => {
+      clearTimeout(timer)
+      clearTimeout(killTimer)
+    }
 
     child.stdout.setEncoding('utf8').on('data', (chunk: string) => {
       stdout += chunk
@@ -42,7 +50,7 @@ export const runCommand: RunCommand = (command, args, options = {}) =>
       stderr += chunk
     })
     child.on('error', (error: NodeJS.ErrnoException) => {
-      clearTimeout(timer)
+      clearTimers()
       resolve({
         exitCode: null,
         stdout,
@@ -51,7 +59,7 @@ export const runCommand: RunCommand = (command, args, options = {}) =>
       })
     })
     child.on('close', (exitCode) => {
-      clearTimeout(timer)
+      clearTimers()
       resolve({ exitCode, stdout, stderr, failure })
     })
   })

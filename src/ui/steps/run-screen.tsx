@@ -26,7 +26,7 @@ const agentColumns = (configuration: AgentConfiguration): Pick<RunRow, 'provider
   effort: formatEffort(configuration.effort),
 })
 
-export const initialRunRows = (reviewers: readonly NumberedReviewer[], council: AgentConfiguration): RunRow[] => [
+const initialRunRows = (reviewers: readonly NumberedReviewer[], council: AgentConfiguration): RunRow[] => [
   ...reviewers.map((reviewer) => ({
     id: reviewerAgentId(reviewer.number),
     ...agentColumns(reviewer.configuration),

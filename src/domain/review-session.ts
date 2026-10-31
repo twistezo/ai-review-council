@@ -1,7 +1,7 @@
 import { z } from 'zod'
 
-export const providerIds = ['codex', 'claude'] as const
-export const providerIdSchema = z.enum(providerIds)
+const providerIds = ['codex', 'claude'] as const
+const providerIdSchema = z.enum(providerIds)
 export type ProviderId = z.infer<typeof providerIdSchema>
 
 export const reportLanguages = ['en', 'pl'] as const
@@ -14,10 +14,10 @@ export const reportLanguageNames: Record<ReportLanguage, string> = {
 }
 
 export const reviewTypes = ['code', 'security', 'ui-ux'] as const
-export const reviewTypeSchema = z.enum(reviewTypes)
+const reviewTypeSchema = z.enum(reviewTypes)
 export type ReviewType = z.infer<typeof reviewTypeSchema>
 
-export const agentConfigurationSchema = z.object({
+const agentConfigurationSchema = z.object({
   provider: providerIdSchema,
   model: z.string().min(1),
   modelLabel: z.string().min(1),
@@ -28,36 +28,36 @@ export type AgentConfiguration = z.infer<typeof agentConfigurationSchema>
 
 export const maxReviewers = 6
 
-export const reviewerAssignmentSchema = z.object({
+const reviewerAssignmentSchema = z.object({
   configuration: agentConfigurationSchema,
   reviewType: reviewTypeSchema,
 })
 export type ReviewerAssignment = z.infer<typeof reviewerAssignmentSchema>
 
-export const repositorySummarySchema = z.object({
+const repositorySummarySchema = z.object({
   root: z.string().min(1),
   // null means detached HEAD
   branch: z.string().min(1).nullable(),
   hasChanges: z.boolean(),
 })
-export type RepositorySummary = z.infer<typeof repositorySummarySchema>
+type RepositorySummary = z.infer<typeof repositorySummarySchema>
 
-export const fileChanges = ['added', 'modified', 'deleted', 'renamed', 'copied', 'untracked'] as const
-export const changedFileSchema = z.object({
+const fileChanges = ['added', 'modified', 'deleted', 'renamed', 'copied', 'untracked'] as const
+const changedFileSchema = z.object({
   path: z.string().min(1),
   previousPath: z.string().min(1).nullable(),
   change: z.enum(fileChanges),
 })
 export type ChangedFile = z.infer<typeof changedFileSchema>
 
-export const commitInfoSchema = z.object({
+const commitInfoSchema = z.object({
   hash: z.string().length(40),
   subject: z.string(),
 })
 export type CommitInfo = z.infer<typeof commitInfoSchema>
 
-export const reviewScopeKinds = ['uncommitted', 'since-commit'] as const
-export const reviewScopeSchema = z.object({
+const reviewScopeKinds = ['uncommitted', 'since-commit'] as const
+const reviewScopeSchema = z.object({
   kind: z.enum(reviewScopeKinds),
   base: commitInfoSchema,
   changedFiles: z.array(changedFileSchema).min(1),

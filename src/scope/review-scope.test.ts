@@ -74,6 +74,24 @@ describe('buildReviewScope', () => {
     expect(bases).toEqual([headCommit.hash])
   })
 
+  it('leaves out a secret file renamed to an innocent name, and the reverse', async () => {
+    const git = fakeGitRepository({
+      listChangedFiles: async () => [
+        { path: 'config.txt', previousPath: '.env', change: 'renamed' },
+        { path: 'certs/server.pem', previousPath: 'notes.txt', change: 'renamed' },
+        { path: 'src/cart.ts', previousPath: 'src/basket.ts', change: 'renamed' },
+      ],
+    })
+
+    expect(await buildReviewScope(git, '/repo', { kind: 'uncommitted' })).toMatchObject({
+      ok: true,
+      scope: {
+        changedFiles: [{ path: 'src/cart.ts', previousPath: 'src/basket.ts', change: 'renamed' }],
+        excludedFiles: ['.env -> config.txt', 'notes.txt -> certs/server.pem'],
+      },
+    })
+  })
+
   it('blocks a scope with nothing to review, also when only secrets changed', async () => {
     const git = fakeGitRepository({
       listChangedFiles: async () => [{ path: '.env', previousPath: null, change: 'modified' }],

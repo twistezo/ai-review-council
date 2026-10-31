@@ -5,7 +5,7 @@ import { useState } from 'react'
 import { clampIndex } from '../list-state.js'
 import { theme } from '../theme.js'
 
-export type SelectItem = {
+type SelectItem = {
   key: string
   label: string
 }

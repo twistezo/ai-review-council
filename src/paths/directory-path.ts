@@ -11,7 +11,7 @@ export const normalizePathInput = (raw: string): string => {
   return unquoted.replaceAll('\\ ', ' ')
 }
 
-export const expandHome = (value: string, homeDirectory: string): string => {
+const expandHome = (value: string, homeDirectory: string): string => {
   if (value === '~') {
     return homeDirectory
   }
@@ -30,7 +30,7 @@ export const isDirectory = async (directory: string): Promise<boolean> => {
   }
 }
 
-export type DirectoryCompletion = {
+type DirectoryCompletion = {
   value: string
   candidates: string[]
 }
