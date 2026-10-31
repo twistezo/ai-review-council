@@ -2,6 +2,18 @@
 
 All notable changes to this project. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## 1.2.0 - 2026-10-31
+
+### Added
+
+- Published on npm as `@twistezo/ai-review-council`: `npm install -g @twistezo/ai-review-council`, or `npx @twistezo/ai-review-council` without installing. The command stays `ai-review-council`.
+- A GitHub release publishes its version to npm from CI.
+
+### Changed
+
+- The package ships only `dist/` and `docs/`; publishing cleans `dist/` and runs the typecheck, tests and build first.
+- The app names itself without the npm scope, e.g. `ai-review-council v1.2.0`.
+
 ## 1.1.1 - 2026-10-31
 
 ### Added

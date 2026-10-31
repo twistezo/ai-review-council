@@ -12,13 +12,15 @@ Changes: [CHANGELOG.md](CHANGELOG.md). Internals: [ARCHITECTURE.md](ARCHITECTURE
 ## Run
 
 ```bash
-npm install
+npm install -g @twistezo/ai-review-council
 ```
 
 ```bash
 # every option is optional and skips its wizard question
-npm run dev -- --dir ~/projects/my-app --lang pl --scope uncommitted --reviewers 2
+ai-review-council --dir ~/projects/my-app --lang pl --scope uncommitted --reviewers 2
 ```
+
+Without installing: `npx @twistezo/ai-review-council`.
 
 | Option | Value | Default |
 |---|---|---|
@@ -59,6 +61,15 @@ A new review type needs a file in both folders and an entry in `reviewTypes` in 
 ## Develop
 
 ```bash
+npm install
+```
+
+```bash
+# same options as the installed command
+npm run dev -- --dir ~/projects/my-app
+```
+
+```bash
 npm test
 ```
 
@@ -68,4 +79,11 @@ npm run typecheck
 
 ```bash
 npm run build
+```
+
+Release: bump the version in `package.json` and `package-lock.json`, add its `CHANGELOG.md` section, then commit, tag and push. A GitHub release for the tag publishes it to npm ([`publish.yml`](.github/workflows/publish.yml)):
+
+```bash
+# notes: the version's CHANGELOG section
+VERSION=1.2.0 && gh release create "v$VERSION" --title "v$VERSION" --notes "$(awk -v v="## $VERSION " '/^## [0-9]/{p=index($0, v)==1} p' CHANGELOG.md)"
 ```
