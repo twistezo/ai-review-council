@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process'
 
-type WriteClipboard = (text: string) => Promise<boolean>
+export type WriteClipboard = (text: string) => Promise<boolean>
 
 // macOS clipboard through `pbcopy`; false when it could not be written.
 export const writeClipboard: WriteClipboard = (text) =>

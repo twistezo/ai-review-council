@@ -36,11 +36,26 @@ export const formatElapsed = ({ startedAt, finishedAt }: AgentProgress, now: num
   return hours > 0 ? `${hours}:${pad(minutes)}:${pad(seconds)}` : `${pad(minutes)}:${pad(seconds)}`
 }
 
+// Every Read, Grep or Glob call, or Codex shell command, so reading and searching alike.
+const countLookups = (count: number): string => (count === 1 ? '1 lookup' : `${count} lookups`)
+
+// Rounded for a glance, e.g. `850 tokens`, `312k tokens`, `1.2M tokens`.
+const formatTokens = (count: number): string => {
+  if (count < 1_000) {
+    return `${count} tokens`
+  }
+
+  // 999,600 rounds up to a million, not to `1000k`.
+  return count < 999_500 ? `${Math.round(count / 1_000)}k tokens` : `${(count / 1_000_000).toFixed(1)}M tokens`
+}
+
+const joinStatus = (parts: readonly (string | null)[]): string => parts.filter((part) => part !== null).join(' · ')
+
 const reviewerRows = (rows: readonly RunRow[]): RunRow[] => rows.filter((row) => !row.isCouncil)
 
 // One short phrase per row: the general step, never individual tool calls.
 export const describeStatus = (row: RunRow, rows: readonly RunRow[]): string => {
-  const { phase, reads, note } = row.progress
+  const { phase, reads, tokens, note } = row.progress
   switch (phase) {
     case 'waiting': {
       if (!row.isCouncil) {
@@ -54,13 +69,15 @@ export const describeStatus = (row: RunRow, rows: readonly RunRow[]): string => 
     case 'starting':
       return 'starting'
     case 'reading':
-      return row.isCouncil ? `verifying (${reads} reads)` : `reading code (${reads})`
+      return `${row.isCouncil ? 'verifying' : 'reading code'} · ${countLookups(reads)}`
     case 'writing':
       return 'writing report'
+    // A failed run can still cost tokens, so both show what the provider reported. A failure reason is long and
+    // the cell cuts its end, so the tokens go before it.
     case 'done':
-      return note === null ? 'done' : `done · ${note}`
+      return joinStatus(['done', note, tokens === null ? null : formatTokens(tokens)])
     case 'failed':
-      return `failed · ${note ?? 'unknown error'}`
+      return joinStatus(['failed', tokens === null ? null : formatTokens(tokens), note ?? 'unknown error'])
   }
 }
 

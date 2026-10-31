@@ -15,6 +15,8 @@ import { theme } from '../theme.js'
 type ReviewersStepProps = {
   models: readonly CatalogModel[]
   value: readonly ReviewerAssignment[]
+  // back from a later step: open the last reviewer instead of the count question
+  resumeAtLast: boolean
   // from `--reviewers`; skips the count question
   presetCount: number | null
   onSubmit: (reviewers: ReviewerAssignment[]) => void
@@ -59,12 +61,26 @@ const resize = (
   return fresh === null ? [...reviewers] : resizeReviewers(reviewers, count, fresh)
 }
 
-export const ReviewersStep = ({ models, value, presetCount, onSubmit, onBack }: ReviewersStepProps): JSX.Element => {
+export const ReviewersStep = ({
+  models,
+  value,
+  resumeAtLast,
+  presetCount,
+  onSubmit,
+  onBack,
+}: ReviewersStepProps): JSX.Element => {
   const [reviewers, setReviewers] = useState<ReviewerAssignment[]>(() =>
     presetCount === null ? [...value] : resize(models, value, presetCount),
   )
   // null shows the count question; a number edits that reviewer. `--reviewers` skips the question.
-  const [editing, setEditing] = useState<number | null>(presetCount === null ? null : 0)
+  // Esc from the prompt opens the last reviewer, with every choice kept.
+  const [editing, setEditing] = useState<number | null>(() => {
+    if (resumeAtLast && value.length > 0) {
+      return reviewers.length - 1
+    }
+
+    return presetCount === null ? null : 0
+  })
 
   if (editing === null) {
     return (

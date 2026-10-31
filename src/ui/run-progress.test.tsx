@@ -37,7 +37,7 @@ describe('formatElapsed', () => {
 describe('describeStatus', () => {
   it('names only the general step of each agent', () => {
     expect(rows.map((item) => describeStatus(item, rows))).toEqual([
-      'reading code (12)',
+      'reading code · 12 lookups',
       'done · 3 findings',
       'failed · Timed out after 10 min',
       'waiting (2/3 reports)',
@@ -47,8 +47,28 @@ describe('describeStatus', () => {
   it('describes the council by its own steps', () => {
     const council = row('council', { phase: 'reading', reads: 4, startedAt: 0 }, true)
 
-    expect(describeStatus(council, [council])).toBe('verifying (4 reads)')
+    expect(describeStatus(council, [council])).toBe('verifying · 4 lookups')
+    expect(describeStatus({ ...council, progress: progress({ phase: 'reading', reads: 1 }) }, [council])).toBe(
+      'verifying · 1 lookup',
+    )
     expect(describeStatus({ ...council, progress: progress({ phase: 'writing' }) }, [council])).toBe('writing report')
+  })
+
+  it('adds the used tokens to a finished agent, rounded for a glance', () => {
+    const finished = (tokens: number | null, note: string | null = '4 findings'): string =>
+      describeStatus(row('1', { phase: 'done', tokens, note }), rows)
+
+    expect(finished(null)).toBe('done · 4 findings')
+    expect(finished(850)).toBe('done · 4 findings · 850 tokens')
+    expect(finished(312_400)).toBe('done · 4 findings · 312k tokens')
+    expect(finished(999_600)).toBe('done · 4 findings · 1.0M tokens')
+    expect(finished(1_240_000, null)).toBe('done · 1.2M tokens')
+  })
+
+  it('adds the used tokens to a failed agent too', () => {
+    const failed = row('1', { phase: 'failed', tokens: 48_200, note: 'Claude Code ended with error_max_turns' })
+
+    expect(describeStatus(failed, rows)).toBe('failed · 48k tokens · Claude Code ended with error_max_turns')
   })
 })
 
@@ -86,7 +106,7 @@ describe('RunProgressView', () => {
 
     expect(lines[0]).toMatch(/^ Provider +Model +Effort +Review +Status +Time/)
     expect(lines[1]).toMatch(/^ Codex +GPT-6-Luna +low +code /)
-    expect(lines[1]).toContain('⠋ reading code (12)')
+    expect(lines[1]).toContain('⠋ reading code · 12 lookups')
     expect(lines[1]).toContain('02:14')
     expect(lines[2]).toContain('✔ done · 3 findings')
     expect(lines[2]).toContain('01:52')

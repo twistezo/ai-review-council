@@ -2,6 +2,7 @@ import { homedir } from 'node:os'
 
 import type { AppInfo } from './app-info.js'
 import { createClipboardReader } from './clipboard/read-clipboard.js'
+import { writeClipboard } from './clipboard/write-clipboard.js'
 import { runAgent } from './execution/run-agent.js'
 import { createGitRepository } from './git/git-repository.js'
 import { findMissingInstructionFiles, instructionsDirectory, readInstructions } from './instructions/instruction-files.js'
@@ -9,6 +10,7 @@ import { startJsonLineProcess } from './process/json-line-process.js'
 import { runCommand } from './process/run-command.js'
 import { createClaudeAdapter } from './providers/claude-adapter.js'
 import { createCodexAdapter } from './providers/codex-adapter.js'
+import { createReportOpener } from './review/open-report.js'
 import { createWorkspacePreparer } from './review/review-workspace.js'
 import type { AppServices } from './ui/app.js'
 
@@ -24,6 +26,8 @@ export const createAppServices = (cwd: string, appInfo: AppInfo): AppServices =>
     ],
     findMissingInstructionFiles: () => findMissingInstructionFiles(instructionsDirectory),
     readClipboard: createClipboardReader(runCommand),
+    writeClipboard,
+    openReport: createReportOpener(runCommand),
     review: {
       runAgent,
       prepareWorkspace: createWorkspacePreparer(git),

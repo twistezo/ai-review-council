@@ -3,6 +3,8 @@ import { z } from 'zod'
 // Provider events reduced to what the run needs: progress, the report and failures.
 export type AgentEvent =
   | { kind: 'session'; sessionId: string }
+  // tokens used so far: input, cached input and output together
+  | { kind: 'usage'; tokens: number }
   | { kind: 'read'; target: string }
   | { kind: 'message'; text: string }
   // `text` is null when the provider ends the turn without repeating the final message.
@@ -46,8 +48,25 @@ const claudeEventSchema = z.discriminatedUnion('type', [
     subtype: z.string(),
     is_error: z.boolean().optional(),
     result: z.string().optional(),
+    usage: z
+      .object({
+        input_tokens: z.number().optional(),
+        cache_creation_input_tokens: z.number().optional(),
+        cache_read_input_tokens: z.number().optional(),
+        output_tokens: z.number().optional(),
+      })
+      .optional(),
   }),
 ])
+
+const sumTokens = (counts: readonly (number | undefined)[]): number => {
+  let total = 0
+  for (const count of counts) {
+    total += count ?? 0
+  }
+
+  return total
+}
 
 // Claude Code `--output-format stream-json`.
 export const parseClaudeLine: ParseAgentLine = (line) => {
@@ -72,11 +91,29 @@ export const parseClaudeLine: ParseAgentLine = (line) => {
         : []
     })
   }
+  // Claude Code counts cache writes and reads apart from fresh input.
+  const usage: AgentEvent[] =
+    event.usage === undefined
+      ? []
+      : [
+          {
+            kind: 'usage',
+            tokens: sumTokens([
+              event.usage.input_tokens,
+              event.usage.cache_creation_input_tokens,
+              event.usage.cache_read_input_tokens,
+              event.usage.output_tokens,
+            ]),
+          },
+        ]
   if (event.subtype === 'success' && event.is_error !== true) {
-    return [{ kind: 'completed', text: event.result ?? null }]
+    return [...usage, { kind: 'completed', text: event.result ?? null }]
   }
 
-  return [{ kind: 'error', message: `Claude Code ended with ${event.subtype}${event.result ? `: ${event.result}` : ''}` }]
+  return [
+    ...usage,
+    { kind: 'error', message: `Claude Code ended with ${event.subtype}${event.result ? `: ${event.result}` : ''}` },
+  ]
 }
 
 const codexEventSchema = z.discriminatedUnion('type', [
@@ -89,7 +126,10 @@ const codexEventSchema = z.discriminatedUnion('type', [
     type: z.literal('item.completed'),
     item: z.object({ type: z.string(), text: z.string().optional() }),
   }),
-  z.object({ type: z.literal('turn.completed') }),
+  z.object({
+    type: z.literal('turn.completed'),
+    usage: z.object({ input_tokens: z.number().optional(), output_tokens: z.number().optional() }).optional(),
+  }),
   z.object({ type: z.literal('turn.failed'), error: z.object({ message: z.string() }) }),
   z.object({ type: z.literal('error'), message: z.string() }),
 ])
@@ -110,8 +150,14 @@ export const parseCodexLine: ParseAgentLine = (line) => {
       return event.item.type === 'agent_message' && event.item.text !== undefined && event.item.text.trim() !== ''
         ? [{ kind: 'message', text: event.item.text }]
         : []
+    // Codex counts cached input inside `input_tokens`.
     case 'turn.completed':
-      return [{ kind: 'completed', text: null }]
+      return [
+        ...(event.usage === undefined
+          ? []
+          : [{ kind: 'usage', tokens: sumTokens([event.usage.input_tokens, event.usage.output_tokens]) } as const]),
+        { kind: 'completed', text: null },
+      ]
     case 'turn.failed':
       return [{ kind: 'error', message: `Codex turn failed: ${event.error.message}` }]
     case 'error':

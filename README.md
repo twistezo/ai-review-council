@@ -1,6 +1,6 @@
 # ai-review-council
 
-Runs independent Codex and Claude Code reviewers on a code change. A council agent verifies their findings and prints one Markdown report, also copied to the clipboard.
+Runs independent Codex and Claude Code reviewers on a code change. A council agent verifies their findings and writes one Markdown report, previewed in the terminal, ready to copy or open.
 
 Changes: [CHANGELOG.md](CHANGELOG.md). Internals: [ARCHITECTURE.md](ARCHITECTURE.md).
 
@@ -39,13 +39,14 @@ The review covers the branch checked out; switch branches before starting.
 | `Ctrl+D` | confirm the prompt |
 | `Ctrl+V` | paste into the prompt |
 | `Esc` | back |
+| `c` / `o` / `q` | after the review: copy the report / open it in the default `.md` app / quit |
 
 | Exit code | Meaning |
 |---|---|
-| `0` | Report printed; failed reviewers named on stderr |
+| `0` | Report shown, then `q`, `Esc` or `Ctrl+C`; failed reviewers named on stderr |
 | `1` | Requirements not met, or no verified report |
 | `2` | Invalid options; usage printed on stderr |
-| `130` / `129` / `143` | `Ctrl+C` / terminal closed / `kill`; agents stop and temp files go, confirmed by a message where the terminal remains |
+| `130` / `129` / `143` | `Ctrl+C` before the report / terminal closed / `kill`; agents stop and temp files go, confirmed by a message where the terminal remains |
 
 ## Agents
 

@@ -7,6 +7,8 @@ export type AgentProgress = {
   phase: AgentPhase
   reads: number
   sessionId: string | null
+  // null until the provider reports usage, at the end of the run
+  tokens: number | null
   startedAt: number | null
   finishedAt: number | null
   // the failure reason or a short result note, e.g. the finding count
@@ -17,6 +19,7 @@ export const waitingProgress: AgentProgress = {
   phase: 'waiting',
   reads: 0,
   sessionId: null,
+  tokens: null,
   startedAt: null,
   finishedAt: null,
   note: null,
@@ -28,6 +31,8 @@ export const applyAgentEvent = (progress: AgentProgress, event: AgentEvent): Age
   switch (event.kind) {
     case 'session':
       return { ...progress, sessionId: event.sessionId }
+    case 'usage':
+      return { ...progress, tokens: (progress.tokens ?? 0) + event.tokens }
     case 'read':
       return { ...progress, phase: 'reading', reads: progress.reads + 1 }
     case 'message':

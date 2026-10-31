@@ -50,7 +50,7 @@ const main = async (): Promise<void> => {
       console.log(`\n${message}\n`)
     }
   }
-  process.exitCode = await printOutcome(result.outcome)
+  process.exitCode = printOutcome(result.outcome)
 }
 
 await main()

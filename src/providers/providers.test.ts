@@ -34,7 +34,7 @@ describe('parseCodexModelPage', () => {
 })
 
 describe('parseClaudeInitializeResponse', () => {
-  it('maps models and treats missing effort levels as no effort parameter', () => {
+  it('maps models, treats missing effort levels as no effort parameter and drops the default alias', () => {
     const models = parseClaudeInitializeResponse({
       type: 'control_response',
       response: {
@@ -42,7 +42,8 @@ describe('parseClaudeInitializeResponse', () => {
         request_id: 'x',
         response: {
           models: [
-            { value: 'default', displayName: 'Default (recommended)' },
+            { value: 'default', displayName: 'Default (recommended)', description: 'Opus 5.5 · Best for everyday' },
+            { value: 'opus', displayName: 'Opus 5.5' },
             { value: 'sonnet', displayName: 'Sonnet', supportedEffortLevels: ['low', 'medium'] },
           ],
           commands: [],
@@ -51,9 +52,22 @@ describe('parseClaudeInitializeResponse', () => {
     })
 
     expect(models).toEqual([
-      { id: 'default', label: 'Default (recommended)', efforts: [] },
+      { id: 'opus', label: 'Opus 5.5', efforts: [] },
       { id: 'sonnet', label: 'Sonnet', efforts: ['low', 'medium'] },
     ])
+  })
+
+  it('keeps the default alias when the CLI lists no other model', () => {
+    const models = parseClaudeInitializeResponse({
+      type: 'control_response',
+      response: {
+        subtype: 'success',
+        request_id: 'x',
+        response: { models: [{ value: 'default', displayName: 'Default (recommended)' }], commands: [] },
+      },
+    })
+
+    expect(models).toEqual([{ id: 'default', label: 'Default (recommended)', efforts: [] }])
   })
 
   it('surfaces an initialize error', () => {

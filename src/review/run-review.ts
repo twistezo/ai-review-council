@@ -40,7 +40,7 @@ const isFence = (line: string): boolean => {
 }
 
 // Lines outside fenced code blocks; a `#` in a code sample is not a heading.
-const proseLines = (text: string): { line: string; index: number }[] => {
+export const proseLines = (text: string): { line: string; index: number }[] => {
   let isInCodeBlock = false
 
   return text

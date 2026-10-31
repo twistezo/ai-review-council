@@ -1,32 +1,15 @@
-import { writeClipboard } from './clipboard/write-clipboard.js'
-import { formatReport } from './review/format-report.js'
 import { describeReviewResult } from './review/review-output.js'
 import type { WizardOutcome } from './ui/app.js'
 
-const defaultColumns = 80
-
-// A full-width line between the progress table and the report.
-const separator = (): string => '─'.repeat(Math.max(1, (process.stdout.columns ?? defaultColumns) - 1))
-
-// The same formatted text is shown and copied.
-const printReport = async (rawReport: string): Promise<void> => {
-  const report = await formatReport(rawReport)
-  console.log(`\n${separator()}\n\n${report}\n\n${separator()}`)
-  const isCopied = await writeClipboard(report)
-  // the trailing empty line keeps the shell prompt apart from the message
-  console.log(`${isCopied ? '✔ Report copied to the clipboard.' : '✘ Could not copy the report to the clipboard.'}\n`)
-}
-
-// Prints what the run produced and returns the exit code.
-export const printOutcome = async (outcome: WizardOutcome): Promise<number> => {
+// Prints what the run left to say after the app closed and returns the exit code.
+// The report itself stays in the app's last frame as a preview, copied with `c`.
+export const printOutcome = (outcome: WizardOutcome): number => {
   switch (outcome.kind) {
     case 'finished': {
-      const { stdout, stderr, exitCode } = describeReviewResult(outcome.result)
+      const { stderr, exitCode } = describeReviewResult(outcome.result)
       if (stderr !== null) {
-        console.error(`\n${stderr}`)
-      }
-      if (stdout !== null) {
-        await printReport(stdout)
+        // the trailing empty line keeps the shell prompt apart from the message
+        console.error(`\n${stderr}\n`)
       }
 
       return exitCode

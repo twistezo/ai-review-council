@@ -10,7 +10,7 @@ flowchart LR
   wizard --> draft[ReviewSessionDraft]
   draft --> reviewers[reviewers in parallel]
   reviewers --> council[council]
-  council --> report[report: stdout + clipboard]
+  council --> report[report preview: c copy, o open]
   reviewers -. events .-> table[progress table]
   council -. events .-> table
 ```
@@ -53,7 +53,7 @@ Global `~/.claude/CLAUDE.md` and `~/.codex/AGENTS.md` reach the agents on purpos
 
 - **Process group**: agents start detached; timeout, cancel and exit stop the whole group (`SIGTERM`, `SIGKILL` after 5 s); once the CLI exits, whatever is left in its group gets `SIGKILL`. [`shutdown.ts`](src/shutdown.ts) also stops them and removes temp folders on `Ctrl+C`, `SIGHUP`, `SIGINT` and `SIGTERM`, then prints a summary where the terminal remains; a `SIGKILL` of the app leaves agents running.
 - **Result**: the final message of a completed turn. No report, an agent error or an early exit is a failure, never an empty review.
-- **Progress**: events become phases (`starting`, `reading`, `writing`, `done`, `failed`) plus a read count.
+- **Progress**: events become phases (`starting`, `reading`, `writing`, `done`, `failed`) plus a lookup count (each read, search or Codex shell command) and the tokens the provider reports at the end.
 
 ## Review run
 
@@ -62,7 +62,7 @@ Global `~/.claude/CLAUDE.md` and `~/.codex/AGENTS.md` reach the agents on purpos
 1. Freezes the diff of tracked changes in a temp folder; new files are listed to read in full.
 2. Numbers reviewers in table order (provider, model, effort) so the council report matches.
 3. Runs reviewers in parallel, then the council with every report, failed ones included; no council if all fail.
-4. Trims text before the report title; [`print-outcome.ts`](src/print-outcome.ts) formats it with Prettier (code blocks untouched), prints and copies it.
+4. Trims text before the report title; [`report-result.tsx`](src/ui/components/report-result.tsx) previews it (title, first paragraph, `### ` headings from [`report-preview.ts`](src/review/report-preview.ts)) and, on `c` or `o`, formats it with Prettier (code blocks untouched) to copy it or open it from a temp file ([`open-report.ts`](src/review/open-report.ts)). [`print-outcome.ts`](src/print-outcome.ts) prints only notes for stderr and the exit code.
 
 ## Testing
 

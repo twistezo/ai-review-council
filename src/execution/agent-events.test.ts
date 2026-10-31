@@ -46,6 +46,25 @@ describe('parseClaudeLine', () => {
     ])
   })
 
+  it('counts fresh input, cache writes, cache reads and output as used tokens', () => {
+    const usage = {
+      input_tokens: 2,
+      cache_creation_input_tokens: 5_523,
+      cache_read_input_tokens: 1_670,
+      output_tokens: 4,
+      output_tokens_details: { thinking_tokens: 0 },
+    }
+
+    expect(parseClaudeLine(line({ type: 'result', subtype: 'success', is_error: false, result: 'OK', usage }))).toEqual([
+      { kind: 'usage', tokens: 7_199 },
+      { kind: 'completed', text: 'OK' },
+    ])
+    expect(parseClaudeLine(line({ type: 'result', subtype: 'error_during_execution', is_error: true, usage }))).toEqual([
+      { kind: 'usage', tokens: 7_199 },
+      { kind: 'error', message: 'Claude Code ended with error_during_execution' },
+    ])
+  })
+
   it('ignores other events and lines that are not JSON', () => {
     expect(parseClaudeLine(line({ type: 'rate_limit_event' }))).toEqual([])
     expect(parseClaudeLine('not json')).toEqual([])
@@ -60,13 +79,18 @@ describe('parseCodexLine', () => {
       line({ type: 'item.started', item: { id: 'i1', type: 'command_execution', command: '/bin/zsh -lc "rg --files"' } }),
       line({ type: 'item.completed', item: { id: 'i1', type: 'command_execution', exit_code: 0 } }),
       line({ type: 'item.completed', item: { id: 'i2', type: 'agent_message', text: '# Report' } }),
-      line({ type: 'turn.completed', usage: { input_tokens: 10 } }),
+      line({
+        type: 'turn.completed',
+        usage: { input_tokens: 20_568, cached_input_tokens: 20_000, output_tokens: 5, reasoning_output_tokens: 0 },
+      }),
     ].flatMap(parseCodexLine)
 
+    // cached input is already inside `input_tokens`
     expect(events).toEqual([
       { kind: 'session', sessionId: 'th-1' },
       { kind: 'read', target: '/bin/zsh -lc "rg --files"' },
       { kind: 'message', text: '# Report' },
+      { kind: 'usage', tokens: 20_573 },
       { kind: 'completed', text: null },
     ])
   })

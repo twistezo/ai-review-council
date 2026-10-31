@@ -11,10 +11,12 @@ import type {
 } from '../domain/review-session.js'
 import { reviewSessionDraftSchema } from '../domain/review-session.js'
 import type { ReadClipboard } from '../clipboard/read-clipboard.js'
+import type { WriteClipboard } from '../clipboard/write-clipboard.js'
 import type { GitRepository, RepositoryState } from '../git/git-repository.js'
 import type { PreflightCheck } from '../preflight/run-preflight.js'
 import type { CatalogModel } from '../providers/model-catalog.js'
 import type { ProviderAdapter } from '../providers/provider-adapter.js'
+import type { OpenReport } from '../review/open-report.js'
 import type { ReviewRunDependencies } from '../review/run-review.js'
 import type { ScopeRequest } from '../scope/build-review-scope.js'
 import type { AnswerField, WizardAnswers } from './components/answers-panel.js'
@@ -39,6 +41,8 @@ export type AppServices = {
   adapters: readonly ProviderAdapter[]
   findMissingInstructionFiles: () => Promise<string[]>
   readClipboard: ReadClipboard
+  writeClipboard: WriteClipboard
+  openReport: OpenReport
   review: ReviewRunDependencies
   cwd: string
   homeDirectory: string
@@ -60,11 +64,14 @@ type AppProps = {
   services: AppServices
   presets: AppPresets
   timeoutMinutes: number
+  // how the wizard ended; with a report on screen it comes before the app exits, so Ctrl+C there keeps it
   onFinish: (outcome: WizardOutcome) => void
 }
 
 type WizardState = {
   step: WizardStep
+  // true when the current step was reached with Esc from a later one
+  isGoingBack: boolean
   skipped: WizardStep[]
   checks: PreflightCheck[]
   models: CatalogModel[]
@@ -139,6 +146,7 @@ export const App = ({ title, services, presets, timeoutMinutes, onFinish }: AppP
   const { exit } = useApp()
   const [state, setState] = useState<WizardState>({
     step: 'preflight',
+    isGoingBack: false,
     skipped: presetSkips(presets),
     checks: [],
     models: [],
@@ -157,11 +165,18 @@ export const App = ({ title, services, presets, timeoutMinutes, onFinish }: AppP
     exit()
   }
   const complete = (patch: Partial<WizardState>): void => {
-    setState((previous) => ({ ...previous, ...patch, step: nextStep(previous.step, previous.skipped) }))
+    setState((previous) => ({
+      ...previous,
+      ...patch,
+      step: nextStep(previous.step, previous.skipped),
+      isGoingBack: false,
+    }))
   }
   const previous = previousStep(state.step, state.skipped)
   const back =
-    previous === null ? undefined : (): void => setState((current) => ({ ...current, step: previous }))
+    previous === null
+      ? undefined
+      : (): void => setState((current) => ({ ...current, step: previous, isGoingBack: true }))
   // A preset step that was skipped is shown when its value turned out invalid.
   const isAutoSubmit = state.step === 'project' && state.skipped.includes('project')
 
@@ -224,6 +239,7 @@ export const App = ({ title, services, presets, timeoutMinutes, onFinish }: AppP
           <ReviewersStep
             models={state.models}
             value={state.reviewers}
+            resumeAtLast={state.isGoingBack}
             presetCount={presets.reviewerCount}
             onSubmit={(reviewers) => complete({ reviewers })}
             onBack={back}
@@ -290,7 +306,15 @@ export const App = ({ title, services, presets, timeoutMinutes, onFinish }: AppP
             </StepAnswersContext.Provider>
           </StepCounterContext.Provider>
         ) : (
-          <RunScreen session={state.running} dependencies={services.review} onFinished={finish} />
+          <RunScreen
+            session={state.running}
+            dependencies={services.review}
+            writeClipboard={services.writeClipboard}
+            openReport={services.openReport}
+            onFinished={finish}
+            onReported={onFinish}
+            onQuit={exit}
+          />
         )}
       </Box>
     </Box>

@@ -2,6 +2,25 @@
 
 All notable changes to this project. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## 1.4.0 - 2026-10-31
+
+### Added
+
+- After the review the app shows a preview of the report in a frame labelled `Report`, with its title, first paragraph and finding headings, and waits: `c` copies the full report, `o` opens it from a temporary file in the default app for `.md`, `q`, `Esc` or `Ctrl+C` quits with exit code `0`.
+- Each agent shows the tokens it used once it ends, done or failed, e.g. `done · 4 findings · 312k tokens`: input, cached input and output together. A timed-out or cancelled agent has no count, since the provider reports none.
+
+### Changed
+
+- The progress table counts each read or search as a lookup: `reading code · 7 lookups`, `verifying · 4 lookups`.
+- Claude Code's `Default (recommended)` model is left out of the pickers; it only points at a model already listed under its own name. It stays when the CLI lists nothing else.
+- The summary's action is `Start` instead of `Start review`.
+- The report is no longer printed in full or copied to the clipboard on its own; the preview stays on screen after quitting.
+- The council opens its report with a fixed head: a one-line verdict, the count of confirmed findings by severity, and `### <severity> · <title>` headings, so the preview shows what matters most.
+
+### Fixed
+
+- `Esc` from the prompt opens the last reviewer with every reviewer kept, instead of the reviewer count question; coming forward from the council still asks the count.
+
 ## 1.3.0 - 2026-10-31
 
 ### Added

@@ -2,6 +2,7 @@ import { Box, Text } from 'ink'
 import type { JSX } from 'react'
 import { useEffect, useState } from 'react'
 
+import type { WriteClipboard } from '../../clipboard/write-clipboard.js'
 import type { AgentConfiguration, ReviewSessionDraft } from '../../domain/review-session.js'
 import { waitingProgress } from '../../execution/agent-progress.js'
 import { formatEffort } from '../../providers/model-catalog.js'
@@ -9,6 +10,9 @@ import { providerDisplayNames } from '../../providers/provider-adapter.js'
 import type { NumberedReviewer } from '../../review/review-messages.js'
 import type { ReviewRunDependencies, ReviewRunResult } from '../../review/run-review.js'
 import { councilAgentId, numberReviewers, reviewerAgentId, runReview } from '../../review/run-review.js'
+import type { OpenReport } from '../../review/open-report.js'
+import { describeReviewResult } from '../../review/review-output.js'
+import { ReportResult } from '../components/report-result.js'
 import { RunProgress } from '../components/run-progress.js'
 import type { RunRow } from '../run-progress.js'
 
@@ -17,7 +21,12 @@ export type RunOutcome = { kind: 'finished'; result: ReviewRunResult } | { kind:
 type RunScreenProps = {
   session: ReviewSessionDraft
   dependencies: ReviewRunDependencies
+  writeClipboard: WriteClipboard
+  openReport: OpenReport
   onFinished: (outcome: RunOutcome) => void
+  // the run is over and its report is on screen; the app keeps running until onQuit
+  onReported: (outcome: RunOutcome) => void
+  onQuit: () => void
 }
 
 const agentColumns = (configuration: AgentConfiguration): Pick<RunRow, 'provider' | 'model' | 'effort'> => ({
@@ -44,14 +53,29 @@ const initialRunRows = (reviewers: readonly NumberedReviewer[], council: AgentCo
 ]
 
 // Starts the review once; leaving the screen (Ctrl+C) cancels every running agent.
-export const RunScreen = ({ session, dependencies, onFinished }: RunScreenProps): JSX.Element => {
+export const RunScreen = ({
+  session,
+  dependencies,
+  writeClipboard,
+  openReport,
+  onFinished,
+  onReported,
+  onQuit,
+}: RunScreenProps): JSX.Element => {
   const [rows, setRows] = useState(() => initialRunRows(numberReviewers(session.reviewers), session.council))
   const [outcome, setOutcome] = useState<RunOutcome | null>(null)
+  const report = outcome?.kind === 'finished' ? describeReviewResult(outcome.result).stdout : null
 
-  // Reported after the final statuses are on screen, so the frame left behind shows them.
+  // Reported after the final statuses are on screen, so the frame left behind shows them. With a report the app
+  // waits for a key, but the outcome is already known: Ctrl+C there quits like `q`, not as a cancelled review.
   useEffect(() => {
-    if (outcome !== null) {
+    if (outcome === null) {
+      return
+    }
+    if (report === null) {
       onFinished(outcome)
+    } else {
+      onReported(outcome)
     }
   }, [outcome])
 
@@ -76,11 +100,23 @@ export const RunScreen = ({ session, dependencies, onFinished }: RunScreenProps)
   return (
     <Box flexDirection="column">
       <Text dimColor>
-        Reviewing {session.scope.changedFiles.length} file(s) · Ctrl+C cancels all agents
+        {outcome === null
+          ? `Reviewing ${session.scope.changedFiles.length} file(s) · Ctrl+C cancels all agents`
+          : `Reviewed ${session.scope.changedFiles.length} file(s)`}
       </Text>
       <Box marginTop={1}>
         <RunProgress rows={rows} />
       </Box>
+      {outcome !== null && report !== null && (
+        <Box flexDirection="column" marginTop={1}>
+          <ReportResult
+            report={report}
+            writeClipboard={writeClipboard}
+            openReport={openReport}
+            onQuit={onQuit}
+          />
+        </Box>
+      )}
     </Box>
   )
 }

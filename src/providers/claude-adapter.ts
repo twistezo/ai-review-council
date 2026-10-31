@@ -25,6 +25,7 @@ const initializeResponseSchema = z.object({
 })
 
 const initializeRequestId = 'ai-review-council-catalog'
+const defaultModelAlias = 'default'
 
 export const parseClaudeInitializeResponse = (message: unknown): ProviderModel[] => {
   const { response } = initializeResponseSchema.parse(message)
@@ -32,7 +33,11 @@ export const parseClaudeInitializeResponse = (message: unknown): ProviderModel[]
     throw new Error(`Claude Code initialize failed: ${response.error}`)
   }
 
-  return response.response.models.map((model) => ({
+  // `default` only points at a model already listed under its own name, e.g. Opus 5.5; kept when it is all there is.
+  const { models } = response.response
+  const namedModels = models.filter((model) => model.value !== defaultModelAlias)
+
+  return (namedModels.length === 0 ? models : namedModels).map((model) => ({
     id: model.value,
     label: model.displayName || model.value,
     efforts: model.supportedEffortLevels ?? [],

@@ -65,7 +65,7 @@ export const SummaryStep = ({ session, onAction }: SummaryStepProps): JSX.Elemen
       <Box marginTop={1}>
         <SelectList
           items={[
-            { key: 'start', label: 'Start review' },
+            { key: 'start', label: 'Start' },
             { key: 'back', label: 'Back' },
             { key: 'cancel', label: 'Cancel' },
           ]}

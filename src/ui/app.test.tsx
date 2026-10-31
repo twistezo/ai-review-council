@@ -68,6 +68,8 @@ const startApp = async (
         adapters: [fakeAdapter('codex'), fakeAdapter('claude')],
         findMissingInstructionFiles: async () => [],
         readClipboard: async () => 'Pasted line 1\r\nPasted line 2',
+        writeClipboard: async () => true,
+        openReport: async () => '/tmp/review.md',
         review: fakeReview(),
         cwd: tmpdir(),
         homeDirectory: tmpdir(),
@@ -110,7 +112,21 @@ const toCouncil = [keys.enter, keys.enter, keys.enter]
 describe('App', () => {
   it('walks the whole flow and runs the review with the chosen agents', async () => {
     const launches: AgentLaunch[] = []
-    const app = await startApp({ review: fakeReview(launches) })
+    const copied: string[] = []
+    const opened: string[] = []
+    const app = await startApp({
+      review: fakeReview(launches),
+      writeClipboard: async (text) => {
+        copied.push(text)
+
+        return true
+      },
+      openReport: async (report) => {
+        opened.push(report)
+
+        return '/tmp/review.md'
+      },
+    })
     // name, then requirements, a separator, and the step counter above the step title
     expect(app.frame()).toMatch(
       /^ ai-review-council v9\.9\.9\n\n ✔ Git · ✔ Codex · ✔ Claude Code\n ─{40}\n\n Report language • step 1 of 7\n/,
@@ -163,12 +179,34 @@ describe('App', () => {
     expect(frame).toContain('Working tree  currently has uncommitted changes')
 
     await app.press(keys.enter)
-    while (app.outcomes.length === 0) {
-      await delay(10)
-    }
+    await app.waitForText('c copy · o open · q quit')
+    // a preview of the report under the finished table; the app waits for a key
+    expect(app.frame()).toContain('Reviewed 1 file(s)')
+    // framed, labelled as the report, with a blank line above the frame
+    expect(app.frame()).toMatch(/00\s*\n\n ╭─+╮\n │ Report +│\n │ +│\n │ Review: VAT missing/)
+    expect(app.frame()).toContain('Review: VAT missing')
+    expect(app.frame()).toContain('• VAT not added')
+    expect(app.frame()).toContain('… 2 lines in the full report')
+    // known already, so quitting with Ctrl+C here ends as a finished review
+    expect(app.outcomes).toHaveLength(1)
 
-    const runFrame = app.frames().findLast((rendered) => rendered.includes('Reviewing')) ?? ''
-    expect(runFrame).toContain('Reviewing 1 file(s) · Ctrl+C cancels all agents')
+    await app.press('c')
+    await app.waitForText('✔ Report copied to the clipboard.')
+    expect(copied).toEqual(['# Review: VAT missing\n\n### VAT not added'])
+    await app.press('o')
+    await app.waitForText('✔ Report opened: /tmp/review.md')
+    expect(opened).toEqual(copied)
+
+    await app.press('q')
+    // the last frame keeps the preview without the hints
+    const lastFrame = app.frames().findLast((rendered) => rendered.includes('• VAT not added')) ?? ''
+    expect(lastFrame).toContain('✔ Report opened: /tmp/review.md')
+    expect(lastFrame).not.toContain('q quit')
+
+    expect(app.frames().some((rendered) => rendered.includes('Reviewing 1 file(s) · Ctrl+C cancels all agents'))).toBe(
+      true,
+    )
+    const runFrame = app.frames().findLast((rendered) => rendered.includes('Reviewed 1 file(s)')) ?? ''
     expect(runFrame).toMatch(/\n {2}Codex +codex-large +medium +ui-ux +✔ done · 1 finding/)
     expect(runFrame).toMatch(/\n {2}Codex +codex-small +default +code +✔ done · 1 finding/)
     expect(runFrame).toMatch(/\n {2}Codex +codex-large +high +council +✔ done · 1 finding/)
@@ -297,6 +335,33 @@ describe('App', () => {
     expect(app.frame()).toContain('Scope         entire codebase on aaaaaaa, uncommitted included (1 files')
   })
 
+  it('goes back from the prompt to the last reviewer, keeping every reviewer', async () => {
+    const app = await startApp()
+    await app.press(...toCouncil, keys.enter)
+    // two reviewers: the first with codex-small, the second with ui-ux
+    await app.press(keys.down, keys.enter)
+    await app.press(keys.right, keys.down, keys.enter)
+    await app.press(keys.right, keys.right, keys.right, keys.down, keys.enter)
+    await app.waitForText('Review prompt')
+
+    await app.press(keys.escape)
+    expect(app.frame()).toContain('Reviewer 2 of 2')
+    expect(app.frame()).toContain('Codex • codex-small • default • code')
+    expect(app.frame()).toContain('› ui-ux')
+    expect(app.frame()).not.toContain('How many reviewers')
+
+    await app.press(keys.enter)
+    expect(app.frame()).toContain('Review prompt')
+    expect(app.frame()).toContain('Codex • codex-large • medium  • ui-ux')
+
+    // back past the reviewers to the council, then forward again: the count question, still set to 2
+    await app.press(keys.escape, keys.escape, keys.escape, keys.escape)
+    expect(app.frame()).toContain('Council agent')
+    await app.press(keys.enter)
+    expect(app.frame()).toContain('How many reviewers')
+    expect(app.frame()).toContain('› 2')
+  })
+
   it('stays on the scope step when there is nothing to review', async () => {
     const app = await startApp({ git: fakeGitRepository({ listChangedFiles: async () => [] }) })
     await app.press(...toCouncil)
@@ -327,9 +392,7 @@ describe('App', () => {
     expect(app.frame()).toContain('Summary')
     expect(app.frame()).toContain('Prompt        none, review of the code alone')
     await app.press(keys.enter)
-    while (app.outcomes.length === 0) {
-      await delay(10)
-    }
+    await app.waitForText('q quit')
     expect(launches[0]?.message).toContain('## Review prompt\nNone given. Review the change on its own merits')
   })
 })
