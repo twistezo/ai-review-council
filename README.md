@@ -12,15 +12,15 @@ Changes: [CHANGELOG.md](CHANGELOG.md). Internals: [ARCHITECTURE.md](ARCHITECTURE
 ## Run
 
 ```bash
+# install
 npm install -g @twistezo/ai-review-council
-```
 
-```bash
-# every option is optional and skips its wizard question
+# run; every option is optional and skips its wizard question
 ai-review-council --dir ~/projects/my-app --lang pl --scope uncommitted --reviewers 2
-```
 
-Without installing: `npx @twistezo/ai-review-council`.
+# or run without installing
+npx @twistezo/ai-review-council
+```
 
 | Option | Value | Default |
 |---|---|---|
@@ -61,29 +61,33 @@ A new review type needs a file in both folders and an entry in `reviewTypes` in 
 ## Develop
 
 ```bash
+# install dependencies
 npm install
-```
 
-```bash
-# same options as the installed command
+# run from source; same options as the installed command
 npm run dev -- --dir ~/projects/my-app
-```
 
-```bash
+# tests, typecheck, build into `dist/`
 npm test
-```
-
-```bash
 npm run typecheck
-```
-
-```bash
 npm run build
 ```
 
-Release: bump the version in `package.json` and `package-lock.json`, add its `CHANGELOG.md` section, then commit, tag and push. A GitHub release for the tag publishes it to npm ([`publish.yml`](.github/workflows/publish.yml)):
+Release: a GitHub release for the tag publishes the version to npm ([`publish.yml`](.github/workflows/publish.yml)).
 
 ```bash
-# notes: the version's CHANGELOG section
-VERSION=1.2.0 && gh release create "v$VERSION" --title "v$VERSION" --notes "$(awk -v v="## $VERSION " '/^## [0-9]/{p=index($0, v)==1} p' CHANGELOG.md)"
+# version to release; add its section to CHANGELOG.md first
+VERSION=1.2.1
+
+# bump package.json and package-lock.json, no Git commit or tag
+npm version "$VERSION" --no-git-tag-version
+
+# commit, tag and push
+git add CHANGELOG.md package.json package-lock.json
+git commit -m "Release v$VERSION"
+git tag "v$VERSION"
+git push origin main "v$VERSION"
+
+# GitHub release with the version's CHANGELOG section as notes; CI publishes to npm
+gh release create "v$VERSION" --title "v$VERSION" --notes "$(awk -v v="## $VERSION " '/^## [0-9]/{p=index($0, v)==1} p' CHANGELOG.md)"
 ```
