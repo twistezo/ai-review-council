@@ -2,6 +2,7 @@ import type {
   AgentConfiguration,
   ChangedFile,
   ReportLanguage,
+  ReviewScope,
   ReviewSessionDraft,
   ReviewType,
 } from '../domain/review-session.js'
@@ -33,15 +34,24 @@ const changeLabels: Record<ChangedFile['change'], string> = {
 const describeFile = (file: ChangedFile): string =>
   `- ${file.previousPath === null ? file.path : `${file.previousPath} -> ${file.path}`} (${changeLabels[file.change]})`
 
+const describeRange = (scope: ReviewScope): string => {
+  const base = `${scope.base.hash.slice(0, 7)} ${scope.base.subject}`.trim()
+  switch (scope.kind) {
+    case 'uncommitted':
+      return `Uncommitted changes against ${base}.`
+    case 'since-commit':
+      return `Everything changed after ${base}, up to the current files with uncommitted changes. The base commit itself is not part of the change.`
+    case 'full':
+      return `The entire codebase at ${base}, uncommitted changes included. Every file is part of the change and shows as added in the diff.`
+  }
+}
+
 const scopeSection = (session: ReviewSessionDraft, diffPath: string): string => {
   const { repository, scope } = session
-  const base = `${scope.base.hash.slice(0, 7)} ${scope.base.subject}`.trim()
   const lines = [
     '## Scope',
     `Repository: ${repository.root} (${repository.branch === null ? 'detached HEAD' : `branch ${repository.branch}`})`,
-    scope.kind === 'uncommitted'
-      ? `Uncommitted changes against ${base}.`
-      : `Everything changed after ${base}, up to the current files with uncommitted changes. The base commit itself is not part of the change.`,
+    describeRange(scope),
     `Diff of tracked changes: ${diffPath}`,
     `Changed files (${scope.changedFiles.length}):`,
     ...scope.changedFiles.map(describeFile),

@@ -6,6 +6,9 @@ import { providerDisplayNames } from '../providers/provider-adapter.js'
 
 export const headCommit: CommitInfo = { hash: 'a'.repeat(40), subject: 'Add checkout form' }
 
+// Git's empty tree in a SHA-1 repository
+export const emptyTreeHash = '4b825dc642cb6eb9a060e54bf8d69288fbee4904'
+
 export const commandResult = (overrides: Partial<CommandResult> = {}): CommandResult => ({
   exitCode: 0,
   stdout: '',
@@ -34,6 +37,7 @@ export const fakeGitRepository = (overrides: Partial<GitRepository> = {}): GitRe
   readState: async () => fakeRepositoryState(),
   resolveCommit: async (_root, ref) => (ref === 'HEAD' || headCommit.hash.startsWith(ref) ? headCommit : null),
   isInHeadHistory: async () => true,
+  readEmptyTreeHash: async () => emptyTreeHash,
   listChangedFiles: async () => [
     { path: 'src/checkout.ts', previousPath: null, change: 'modified' },
     { path: '.env.local', previousPath: null, change: 'untracked' },

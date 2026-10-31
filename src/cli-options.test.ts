@@ -21,9 +21,10 @@ describe('parseCliOptions', () => {
     })
   })
 
-  it('reads the scope as uncommitted or a commit hash', () => {
+  it('reads the scope as uncommitted, the entire codebase or a commit hash', () => {
     expect(parseCliOptions(['-s', 'uncommitted'])).toMatchObject({ ok: true, options: { scope: { kind: 'uncommitted' } } })
     expect(parseCliOptions(['--scope', 'Uncommitted'])).toMatchObject({ ok: true, options: { scope: { kind: 'uncommitted' } } })
+    expect(parseCliOptions(['--scope', ' Full '])).toMatchObject({ ok: true, options: { scope: { kind: 'full' } } })
     expect(parseCliOptions(['--scope=be921ebca'])).toMatchObject({
       ok: true,
       options: { scope: { kind: 'since-commit', commitRef: 'be921ebca' } },
@@ -33,7 +34,7 @@ describe('parseCliOptions', () => {
   it.each(['main', 'HEAD~1', 'abc', 'staged'])('rejects the scope %j', (value) => {
     expect(parseCliOptions(['--scope', value])).toEqual({
       ok: false,
-      error: 'The --scope option needs `uncommitted` or a commit hash (4 to 40 hexadecimal characters).',
+      error: 'The --scope option needs `uncommitted`, `full` or a commit hash (4 to 40 hexadecimal characters).',
     })
   })
 

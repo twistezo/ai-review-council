@@ -19,6 +19,8 @@ export type GitRepository = {
   resolveCommit: (root: string, ref: string) => Promise<CommitInfo | null>
   // true when the commit is HEAD or one of its ancestors
   isInHeadHistory: (root: string, hash: string) => Promise<boolean>
+  // hash of a tree with no files, in the repository's hash format; null when Git fails
+  readEmptyTreeHash: (root: string) => Promise<string | null>
   listChangedFiles: (root: string, baseHash: string) => Promise<ChangedFile[]>
   // unified diff of tracked paths between the base and the working tree
   readDiff: (root: string, baseHash: string, paths: readonly string[]) => Promise<string>
@@ -83,6 +85,13 @@ export const createGitRepository = (run: RunCommand): GitRepository => {
 
     isInHeadHistory: async (root, hash) =>
       (await git(root, ['merge-base', '--is-ancestor', hash, 'HEAD'])) !== null,
+
+    readEmptyTreeHash: async (root) => {
+      // Hashing nothing as a tree gives the empty tree, also in SHA-256 repositories.
+      const output = await git(root, ['hash-object', '-t', 'tree', '/dev/null'])
+
+      return output === null ? null : output.trim()
+    },
 
     listChangedFiles: async (root, baseHash) => {
       // `git diff <base>` compares the base with the working tree: staged and unstaged changes.

@@ -97,4 +97,14 @@ describe('createGitRepository', () => {
 
     expect(await git.resolveCommit('/repo', 'deadbeef')).toBeNull()
   })
+
+  it('reads the empty tree hash in the repository format, or nothing when Git fails', async () => {
+    const sha256EmptyTree = '6ef19b41225c5369f1c104d45d8d85efa9b057b53b14b4b9b939dd74decc5321'
+    const git = createGitRepository(
+      fakeRunCommand({ 'git hash-object -t tree /dev/null': commandResult({ stdout: `${sha256EmptyTree}\n` }) }),
+    )
+
+    expect(await git.readEmptyTreeHash('/repo')).toBe(sha256EmptyTree)
+    expect(await createGitRepository(fakeRunCommand({})).readEmptyTreeHash('/repo')).toBeNull()
+  })
 })

@@ -56,10 +56,13 @@ const commitInfoSchema = z.object({
 })
 export type CommitInfo = z.infer<typeof commitInfoSchema>
 
-const reviewScopeKinds = ['uncommitted', 'since-commit'] as const
+const reviewScopeKinds = ['uncommitted', 'since-commit', 'full'] as const
 const reviewScopeSchema = z.object({
   kind: z.enum(reviewScopeKinds),
+  // the commit the review starts from; HEAD for `full`
   base: commitInfoSchema,
+  // what the diff is taken against: the base commit, or Git's empty tree for `full`, so every file shows as added
+  diffBase: z.string().min(1),
   changedFiles: z.array(changedFileSchema).min(1),
   // paths of likely secret files left out of the review
   excludedFiles: z.array(z.string().min(1)),

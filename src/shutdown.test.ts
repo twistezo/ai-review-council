@@ -22,6 +22,7 @@ describe('cleanUpAfterCancel', () => {
     const workspace = await createWorkspacePreparer(fakeGitRepository())('/repo', {
       kind: 'uncommitted',
       base: headCommit,
+      diffBase: headCommit.hash,
       changedFiles: [{ path: 'src/cart.ts', previousPath: null, change: 'modified' }],
       excludedFiles: [],
     })

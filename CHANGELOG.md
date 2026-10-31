@@ -2,6 +2,12 @@
 
 All notable changes to this project. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## 1.3.0 - 2026-10-31
+
+### Added
+
+- `Entire codebase` scope, or `--scope full`: reviews every file at `HEAD` plus uncommitted changes, diffed against an empty tree so agents treat all code as new. Likely secret files stay out.
+
 ## 1.2.1 - 2026-10-31
 
 ### Changed

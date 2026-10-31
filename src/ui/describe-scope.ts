@@ -1,12 +1,19 @@
 import type { ReviewScope } from '../domain/review-session.js'
 
-export const describeScope = (scope: ReviewScope): string => {
+const describeRange = (scope: ReviewScope): string => {
   const base = scope.base.hash.slice(0, 7)
-  const range =
-    scope.kind === 'uncommitted'
-      ? `uncommitted changes on ${base}`
-      : `changes after ${base} ${scope.base.subject}, uncommitted included`
+  switch (scope.kind) {
+    case 'uncommitted':
+      return `uncommitted changes on ${base}`
+    case 'since-commit':
+      return `changes after ${base} ${scope.base.subject}, uncommitted included`
+    case 'full':
+      return `entire codebase on ${base}, uncommitted included`
+  }
+}
+
+export const describeScope = (scope: ReviewScope): string => {
   const excluded = scope.excludedFiles.length === 0 ? '' : `, ${scope.excludedFiles.length} likely secret file(s) excluded`
 
-  return `${range} (${scope.changedFiles.length} files${excluded})`
+  return `${describeRange(scope)} (${scope.changedFiles.length} files${excluded})`
 }

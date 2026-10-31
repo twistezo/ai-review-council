@@ -27,6 +27,7 @@ type ScopeView = 'kind' | 'commit' | 'loading'
 const kindLabels: Record<ReviewScopeKind, string> = {
   uncommitted: 'Uncommitted only',
   'since-commit': 'Since commit',
+  full: 'Entire codebase',
 }
 
 const hints: Record<ScopeView, string> = {
@@ -49,7 +50,7 @@ export const ScopeStep = ({
   const [error, setError] = useState<string | null>(null)
 
   const load = async (request: ScopeRequest): Promise<boolean> => {
-    const previousView: ScopeView = request.kind === 'uncommitted' ? 'kind' : 'commit'
+    const previousView: ScopeView = request.kind === 'since-commit' ? 'commit' : 'kind'
     setView('loading')
     setError(null)
     try {
@@ -94,11 +95,12 @@ export const ScopeStep = ({
           items={[
             { key: 'uncommitted', label: kindLabels.uncommitted },
             { key: 'since-commit', label: kindLabels['since-commit'] },
+            { key: 'full', label: kindLabels.full },
           ]}
           initialKey={initialKind}
           onSelect={(key) => {
-            if (key === 'uncommitted') {
-              void load({ kind: 'uncommitted' })
+            if (key === 'uncommitted' || key === 'full') {
+              void load({ kind: key })
             } else {
               setError(null)
               setView('commit')

@@ -26,7 +26,7 @@ npx @twistezo/ai-review-council
 |---|---|---|
 | `-d, --dir` | folder inside a Git repository | asked |
 | `-l, --lang` | `en`, `pl` | asked, `en` |
-| `-s, --scope` | `uncommitted`, or a commit hash: changes after it, uncommitted included | asked |
+| `-s, --scope` | `uncommitted`; `full`: the entire codebase, every file as new; or a commit hash: changes after it, uncommitted included | asked |
 | `-r, --reviewers` | 1 to 6 | asked |
 | `-t, --timeout` | minutes per agent, 1 to 120 | `10` |
 

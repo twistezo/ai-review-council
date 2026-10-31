@@ -59,7 +59,7 @@ export const createWorkspacePreparer =
     activeDirectories.add(directory)
     const diffPath = path.join(directory, 'change.diff')
     try {
-      await writeFile(diffPath, await git.readDiff(repositoryRoot, scope.base.hash, trackedDiffPaths(scope)))
+      await writeFile(diffPath, await git.readDiff(repositoryRoot, scope.diffBase, trackedDiffPaths(scope)))
     } catch (error) {
       await removeDirectory(directory)
       throw error

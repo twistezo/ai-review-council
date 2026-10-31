@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { fakeGitRepository, headCommit } from '../test-support/fakes.js'
+import { emptyTreeHash, fakeGitRepository, headCommit } from '../test-support/fakes.js'
 import { buildReviewScope } from './build-review-scope.js'
 import { isLikelySecretFile } from './excluded-files.js'
 
@@ -26,6 +26,7 @@ describe('buildReviewScope', () => {
       scope: {
         kind: 'uncommitted',
         base: headCommit,
+        diffBase: headCommit.hash,
         changedFiles: [{ path: 'src/checkout.ts', previousPath: null, change: 'modified' }],
         excludedFiles: ['.env.local'],
       },
@@ -104,6 +105,58 @@ describe('buildReviewScope', () => {
     expect(await buildReviewScope(git, '/repo', { kind: 'since-commit', commitRef: 'aaaa' })).toEqual({
       ok: false,
       error: 'There are no changes after aaaaaaa to review.',
+    })
+    expect(await buildReviewScope(git, '/repo', { kind: 'full' })).toEqual({
+      ok: false,
+      error: 'There are no files to review.',
+    })
+  })
+
+  it('reviews the entire codebase as new files: diffed against the empty tree, from HEAD', async () => {
+    const bases: string[] = []
+    const git = fakeGitRepository({
+      listChangedFiles: async (_root, baseHash) => {
+        bases.push(baseHash)
+
+        return [
+          { path: 'src/cart.ts', previousPath: null, change: 'added' },
+          { path: '.env', previousPath: null, change: 'added' },
+          { path: 'notes.md', previousPath: null, change: 'untracked' },
+        ]
+      },
+    })
+
+    expect(await buildReviewScope(git, '/repo', { kind: 'full' })).toEqual({
+      ok: true,
+      scope: {
+        kind: 'full',
+        base: headCommit,
+        diffBase: emptyTreeHash,
+        changedFiles: [
+          { path: 'src/cart.ts', previousPath: null, change: 'added' },
+          { path: 'notes.md', previousPath: null, change: 'untracked' },
+        ],
+        excludedFiles: ['.env'],
+      },
+    })
+    expect(bases).toEqual([emptyTreeHash])
+  })
+
+  it('stops the entire codebase review when Git cannot read the empty tree', async () => {
+    const git = fakeGitRepository({ readEmptyTreeHash: async () => null })
+
+    expect(await buildReviewScope(git, '/repo', { kind: 'full' })).toEqual({
+      ok: false,
+      error: 'Git could not read the empty tree to compare the codebase with.',
+    })
+  })
+
+  it('needs a first commit for the entire codebase review', async () => {
+    const git = fakeGitRepository({ resolveCommit: async () => null })
+
+    expect(await buildReviewScope(git, '/repo', { kind: 'full' })).toEqual({
+      ok: false,
+      error: 'Commit "HEAD" was not found or is ambiguous.',
     })
   })
 })

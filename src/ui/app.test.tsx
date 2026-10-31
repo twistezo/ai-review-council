@@ -287,6 +287,16 @@ describe('App', () => {
     expect(app.outcomes).toEqual([{ kind: 'blocked' }])
   })
 
+  it('reviews the entire codebase chosen in the scope step', async () => {
+    const app = await startApp()
+    await app.press(keys.enter, keys.enter)
+
+    expect(app.frame()).toContain('Entire codebase')
+    await app.press(keys.down, keys.down, keys.enter)
+    await app.waitForText('Council agent')
+    expect(app.frame()).toContain('Scope         entire codebase on aaaaaaa, uncommitted included (1 files')
+  })
+
   it('stays on the scope step when there is nothing to review', async () => {
     const app = await startApp({ git: fakeGitRepository({ listChangedFiles: async () => [] }) })
     await app.press(...toCouncil)

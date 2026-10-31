@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 
 import type { ReviewSessionDraft } from '../domain/review-session.js'
 import { instructionsDirectory, readInstructions } from '../instructions/instruction-files.js'
-import { fakeGitRepository, headCommit } from '../test-support/fakes.js'
+import { emptyTreeHash, fakeGitRepository, headCommit } from '../test-support/fakes.js'
 import type { NumberedReviewer, ReviewerReport } from './review-messages.js'
 import { buildReviewerMessage } from './review-messages.js'
 import { describeReviewResult } from './review-output.js'
@@ -15,6 +15,7 @@ const session: ReviewSessionDraft = {
   scope: {
     kind: 'since-commit',
     base: headCommit,
+    diffBase: headCommit.hash,
     changedFiles: [
       { path: 'src/cart.ts', previousPath: null, change: 'modified' },
       { path: 'src/price.ts', previousPath: 'src/cost.ts', change: 'renamed' },
@@ -45,6 +46,17 @@ describe('buildReviewerMessage', () => {
     expect(message).toContain('Left out as likely secrets, do not open: .env.local')
     expect(message).toContain('## Review prompt\nTotal must include VAT')
   })
+
+  it('tells agents the entire codebase is the change', () => {
+    const fullSession: ReviewSessionDraft = {
+      ...session,
+      scope: { ...session.scope, kind: 'full', diffBase: emptyTreeHash },
+    }
+
+    expect(buildReviewerMessage(fullSession, reviewer, '/tmp/x/change.diff')).toContain(
+      'The entire codebase at aaaaaaa Add checkout form, uncommitted changes included. Every file is part of the change and shows as added in the diff.',
+    )
+  })
 })
 
 describe('review workspace', () => {
@@ -68,6 +80,21 @@ describe('review workspace', () => {
     })
 
     await expect(createWorkspacePreparer(git)('/repo', session.scope)).rejects.toThrow('Could not read the diff')
+  })
+
+  it('takes the diff against the scope diff base, the empty tree for the entire codebase', async () => {
+    const bases: string[] = []
+    const git = fakeGitRepository({
+      readDiff: async (_root, baseHash) => {
+        bases.push(baseHash)
+
+        return ''
+      },
+    })
+    const workspace = await createWorkspacePreparer(git)('/repo', { ...session.scope, kind: 'full', diffBase: emptyTreeHash })
+    await workspace.cleanup()
+
+    expect(bases).toEqual([emptyTreeHash])
   })
 })
 
