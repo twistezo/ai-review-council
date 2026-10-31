@@ -2,6 +2,15 @@
 
 All notable changes to this project. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## 2.0.1 - 2026-10-31
+
+### Changed
+
+- Compact header without a separator; progress table headers have a blank line before the agent rows.
+- Summary shows only `Start`, with `Esc` to go back and `Ctrl+C` to quit; the redundant reviewer count is removed.
+- Review cancellation hint sits below the progress table. Agent pickers use the same arrow for active columns and selected options.
+- Shorter prompt help and a `Cmd+V` paste hint.
+
 ## 2.0.0 - 2026-10-31
 
 ### Added

@@ -1,4 +1,4 @@
-import { Box, Text, useApp, useWindowSize } from 'ink'
+import { Box, Text, useApp } from 'ink'
 import type { JSX } from 'react'
 import { useState } from 'react'
 
@@ -106,11 +106,6 @@ const buildSessionDraft = (state: WizardState, timeoutMinutes: number): ReviewSe
 
   return result.success ? result.data : null
 }
-
-// paddingX on both sides of the screen
-const screenPadding = 2
-// a short rule under the header, narrower on small windows
-const separatorWidth = 40
 
 // The answer each wizard step sets, shown with `← selecting` while that step is open.
 const stepFields: Partial<Record<WizardStep, AnswerField>> = {
@@ -265,10 +260,8 @@ export const App = ({ title, services, presets, timeoutMinutes, onFinish }: AppP
             onAction={(action) => {
               if (action === 'back') {
                 back?.()
-              } else if (action === 'start') {
-                setState((current) => ({ ...current, running: session }))
               } else {
-                finish({ kind: 'cancelled' })
+                setState((current) => ({ ...current, running: session }))
               }
             }}
           />
@@ -277,7 +270,6 @@ export const App = ({ title, services, presets, timeoutMinutes, onFinish }: AppP
     }
   }
 
-  const { columns } = useWindowSize()
   const steps = numberedSteps(state.skipped)
   const stepNumber = state.running === null ? steps.indexOf(state.step) + 1 : 0
 
@@ -286,12 +278,7 @@ export const App = ({ title, services, presets, timeoutMinutes, onFinish }: AppP
       <Text bold color={theme.title}>
         {title}
       </Text>
-      {state.checks.length > 0 && (
-        <Box marginTop={1}>
-          <RequirementsLine checks={state.checks} />
-        </Box>
-      )}
-      <Text dimColor>{'─'.repeat(Math.max(1, Math.min(separatorWidth, columns - screenPadding)))}</Text>
+      {state.checks.length > 0 && <RequirementsLine checks={state.checks} />}
       <Box marginTop={1}>
         {state.running === null ? (
           <StepCounterContext.Provider value={stepNumber > 0 ? `step ${stepNumber} of ${steps.length}` : null}>

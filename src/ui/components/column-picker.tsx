@@ -49,7 +49,7 @@ export const ColumnPicker = ({ columns, onChange, onSubmit, height = 10 }: Colum
         return (
           <Box key={column.title} flexDirection="column">
             <Text bold underline={isActiveColumn} color={isActiveColumn ? theme.focus : undefined}>
-              {isActiveColumn ? '▸ ' : '  '}
+              {isActiveColumn ? '› ' : '  '}
               {column.title}
             </Text>
             <Text dimColor>{start > 0 ? '  ↑' : ' '}</Text>

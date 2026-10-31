@@ -101,12 +101,17 @@ export const RunScreen = ({
     <Box flexDirection="column">
       <Text dimColor>
         {outcome === null
-          ? `Reviewing ${session.scope.changedFiles.length} file(s) · Ctrl+C cancels all agents`
+          ? `Reviewing ${session.scope.changedFiles.length} file(s)`
           : `Reviewed ${session.scope.changedFiles.length} file(s)`}
       </Text>
       <Box marginTop={1}>
         <RunProgress rows={rows} />
       </Box>
+      {outcome === null && (
+        <Box marginTop={1}>
+          <Text dimColor>Ctrl+C cancels all agents</Text>
+        </Box>
+      )}
       {outcome !== null && report !== null && (
         <Box flexDirection="column" marginTop={1}>
           <ReportResult

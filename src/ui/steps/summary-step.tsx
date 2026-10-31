@@ -11,7 +11,7 @@ import { SelectList } from '../components/select-list.js'
 import { StepFrame } from '../components/step-frame.js'
 import { theme } from '../theme.js'
 
-type SummaryAction = 'start' | 'back' | 'cancel'
+type SummaryAction = 'start' | 'back'
 
 type SummaryStepProps = {
   session: ReviewSessionDraft
@@ -37,7 +37,7 @@ export const SummaryStep = ({ session, onAction }: SummaryStepProps): JSX.Elemen
   const [firstPromptLine = '', ...otherPromptLines] = summarizePrompt(session.prompt)
 
   return (
-    <StepFrame title="Summary" hints="↑↓ row · Enter confirm">
+    <StepFrame title="Summary" hints="Enter confirm" onBack={() => onAction('back')}>
       <Field label="Language">{reportLanguageNames[session.language]}</Field>
       <Field label="Project">{repository.root}</Field>
       <Field label="Branch">{repository.branch ?? 'detached HEAD'}</Field>
@@ -50,7 +50,7 @@ export const SummaryStep = ({ session, onAction }: SummaryStepProps): JSX.Elemen
       </Field>
       <Field label="Scope">{describeScope(session.scope)}</Field>
       <Field label="Council">{formatConfiguration(session.council)}</Field>
-      <Field label="Reviewers">{String(reviewers.length)}</Field>
+      <Field label="Reviewers">{null}</Field>
       <Box paddingLeft={labelWidth}>
         <ReviewerList reviewers={reviewers} />
       </Box>
@@ -64,12 +64,8 @@ export const SummaryStep = ({ session, onAction }: SummaryStepProps): JSX.Elemen
 
       <Box marginTop={1}>
         <SelectList
-          items={[
-            { key: 'start', label: 'Start' },
-            { key: 'back', label: 'Back' },
-            { key: 'cancel', label: 'Cancel' },
-          ]}
-          onSelect={(key) => onAction(key === 'start' || key === 'back' ? key : 'cancel')}
+          items={[{ key: 'start', label: 'Start' }]}
+          onSelect={() => onAction('start')}
         />
       </Box>
     </StepFrame>

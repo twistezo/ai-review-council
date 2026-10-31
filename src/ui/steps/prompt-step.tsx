@@ -17,9 +17,9 @@ export const PromptStep = ({ value, readClipboard, onSubmit, onBack }: PromptSte
   const [prompt, setPrompt] = useState(value)
 
   return (
-    <StepFrame title="Review prompt" hints="Enter new line · Ctrl+D confirm · Ctrl+V or Cmd+V paste" onBack={onBack}>
+    <StepFrame title="Review prompt" hints="Enter new line · Ctrl+D confirm · Cmd+V paste" onBack={onBack}>
       <Box marginBottom={1}>
-        <Text dimColor>Task, acceptance criteria, links. Shared by all agents.</Text>
+        <Text dimColor>Add context to guide the review. Shared by all agents.</Text>
       </Box>
       <MultilineInput
         value={prompt}

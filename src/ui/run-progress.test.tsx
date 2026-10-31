@@ -105,18 +105,19 @@ describe('RunProgressView', () => {
     const lines = (lastFrame() ?? '').split('\n')
 
     expect(lines[0]).toMatch(/^ Provider +Model +Effort +Review +Status +Time/)
-    expect(lines[1]).toMatch(/^ Codex +GPT-6-Luna +low +code /)
-    expect(lines[1]).toContain('⠋ reading code · 12 lookups')
-    expect(lines[1]).toContain('02:14')
-    expect(lines[2]).toContain('✔ done · 3 findings')
-    expect(lines[2]).toContain('01:52')
-    expect(lines[3]).toContain('✘ failed · Timed out after 10 min')
+    expect(lines[1]?.trim()).toBe('')
+    expect(lines[2]).toMatch(/^ Codex +GPT-6-Luna +low +code /)
+    expect(lines[2]).toContain('⠋ reading code · 12 lookups')
+    expect(lines[2]).toContain('02:14')
+    expect(lines[3]).toContain('✔ done · 3 findings')
+    expect(lines[3]).toContain('01:52')
+    expect(lines[4]).toContain('✘ failed · Timed out after 10 min')
     // a separator line sets the council apart from the reviewers
-    expect(lines[4]).toMatch(/^─{20,}$/)
-    expect(lines[5]).toMatch(/^ Claude Code +Haiku 5\.5 +low +council /)
-    expect(lines[5]).toContain('○ waiting (2/3 reports)')
+    expect(lines[5]).toMatch(/^─{20,}$/)
+    expect(lines[6]).toMatch(/^ Claude Code +Haiku 5\.5 +low +council /)
+    expect(lines[6]).toContain('○ waiting (2/3 reports)')
     // statuses start in the same column
-    expect(lines[1]?.indexOf('reading')).toBe(lines[2]?.indexOf('done') ?? 0)
+    expect(lines[2]?.indexOf('reading')).toBe(lines[3]?.indexOf('done') ?? 0)
   })
 
   it('fits a narrow window without wrapping, truncating the status first', () => {
@@ -124,10 +125,10 @@ describe('RunProgressView', () => {
     const { lastFrame } = render(<RunProgressView rows={rows} now={134_000} frame={0} windowColumns={windowColumns} />)
     const lines = (lastFrame() ?? '').split('\n')
 
-    // header, rows and the separator above the council
-    expect(lines).toHaveLength(rows.length + 2)
+    // header, blank line, rows and the separator above the council
+    expect(lines).toHaveLength(rows.length + 3)
     expect(lines.every((line) => line.trimEnd().length <= windowColumns)).toBe(true)
-    expect(lines[3]).toContain('✘ failed')
+    expect(lines[4]).toContain('✘ failed')
   })
 })
 

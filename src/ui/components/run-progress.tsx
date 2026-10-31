@@ -129,6 +129,7 @@ export const RunProgressView = ({ rows: unsortedRows, now, frame, windowColumns 
         time="Time"
         isDimmed
       />
+      <Box height={1} />
       {rows.map((row, index) => {
         const tone = phaseTones[row.progress.phase]
         const mark = tone === 'active' ? spinner : toneMarks[tone]

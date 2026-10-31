@@ -127,9 +127,9 @@ describe('App', () => {
         return '/tmp/review.md'
       },
     })
-    // name, then requirements, a separator, and the step counter above the step title
+    // compact header, then one blank line before the step
     expect(app.frame()).toMatch(
-      /^ ai-review-council v9\.9\.9\n\n ✔ Git · ✔ Codex · ✔ Claude Code\n ─{40}\n\n Report language • step 1 of 7\n/,
+      /^ ai-review-council v9\.9\.9\n ✔ Git · ✔ Codex · ✔ Claude Code\n\n Report language • step 1 of 7\n/,
     )
     expect(app.frame()).toContain('Report language')
     expect(app.frame()).toContain('✔ Git · ✔ Codex · ✔ Claude Code')
@@ -151,7 +151,7 @@ describe('App', () => {
     expect(app.frame()).toContain('Reviewer 2 of 2')
     expect(app.frame()).toContain('Codex • codex-small • default • code')
     // the next reviewer starts fresh: focus on the left column, first model, its default effort
-    expect(app.frame()).toContain('▸ Provider')
+    expect(app.frame()).toContain('› Provider')
     expect(app.frame()).toContain('› codex-large')
     expect(app.frame()).toContain('› medium')
     expect(app.frame()).not.toContain('› high')
@@ -177,6 +177,13 @@ describe('App', () => {
     expect(summaryOrder.every((position) => position >= 0)).toBe(true)
     expect(summaryOrder).toEqual([...summaryOrder].sort((left, right) => left - right))
     expect(frame).toContain('Working tree  currently has uncommitted changes')
+    expect(frame).toContain('Enter confirm · Esc back')
+
+    await app.press(keys.escape)
+    expect(app.frame()).toContain('Review prompt')
+    expect(app.frame()).toContain('Checkout total must include VAT')
+    await app.press(keys.ctrlD)
+    expect(app.frame()).toContain('Summary')
 
     await app.press(keys.enter)
     await app.waitForText('c copy · o open · q quit')
@@ -203,9 +210,10 @@ describe('App', () => {
     expect(lastFrame).toContain('✔ Report opened: /tmp/review.md')
     expect(lastFrame).not.toContain('q quit')
 
-    expect(app.frames().some((rendered) => rendered.includes('Reviewing 1 file(s) · Ctrl+C cancels all agents'))).toBe(
-      true,
-    )
+    const activeFrame = app.frames().find((rendered) => rendered.includes('Reviewing 1 file(s)')) ?? ''
+    expect(activeFrame).toContain('Ctrl+C cancels all agents')
+    expect(activeFrame.indexOf('Ctrl+C cancels all agents')).toBeGreaterThan(activeFrame.indexOf('council'))
+    expect(activeFrame).not.toContain('file(s) · Ctrl+C')
     const runFrame = app.frames().findLast((rendered) => rendered.includes('Reviewed 1 file(s)')) ?? ''
     expect(runFrame).toMatch(/\n {2}Codex +codex-large +medium +ui-ux +✔ done · 1 finding/)
     expect(runFrame).toMatch(/\n {2}Codex +codex-small +default +code +✔ done · 1 finding/)
