@@ -29,7 +29,7 @@ export const usage = `Usage: ai-review-council [options]
 Options:
   -d, --dir <path>     Project folder to review; skips the folder step
   -l, --lang <code>    Report language: ${reportLanguages.join(', ')}; skips the language step
-  -s, --scope <value>  uncommitted, full for the entire codebase, or a commit hash to review the changes after it;
+  -s, --scope <value>  uncommitted, codebase for the entire codebase, or a commit hash to review the changes after it;
                        skips the scope step
   -r, --reviewers <n>  Number of reviewers, 1 to ${maxReviewers}; skips the count question
   -t, --timeout <min>  Minutes each agent may run before it fails (default ${defaultTimeoutMinutes}, max ${maxTimeoutMinutes})
@@ -53,7 +53,7 @@ const readRawOptions = (args: readonly string[]): RawOptions =>
   }).values
 
 const uncommittedScope = 'uncommitted'
-const fullScope = 'full'
+const codebaseScope = 'codebase'
 const reviewerCountSchema = z.number().int().min(1).max(maxReviewers)
 
 const parseScope = (value: string | undefined): ScopeRequest | null | 'invalid' => {
@@ -64,7 +64,7 @@ const parseScope = (value: string | undefined): ScopeRequest | null | 'invalid' 
   if (trimmed.toLowerCase() === uncommittedScope) {
     return { kind: 'uncommitted' }
   }
-  if (trimmed.toLowerCase() === fullScope) {
+  if (trimmed.toLowerCase() === codebaseScope) {
     return { kind: 'full' }
   }
 
@@ -88,7 +88,7 @@ export const parseCliOptions = (args: readonly string[]): CliOptionsResult => {
   }
   const scope = parseScope(values.scope)
   if (scope === 'invalid') {
-    return { ok: false, error: 'The --scope option needs `uncommitted`, `full` or a commit hash (4 to 40 hexadecimal characters).' }
+    return { ok: false, error: 'The --scope option needs `uncommitted`, `codebase` or a commit hash (4 to 40 hexadecimal characters).' }
   }
   const reviewerCount = values.reviewers === undefined ? null : reviewerCountSchema.safeParse(Number(values.reviewers))
   if (reviewerCount !== null && !reviewerCount.success) {

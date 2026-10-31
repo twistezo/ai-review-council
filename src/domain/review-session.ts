@@ -26,7 +26,7 @@ const agentConfigurationSchema = z.object({
 })
 export type AgentConfiguration = z.infer<typeof agentConfigurationSchema>
 
-export const maxReviewers = 6
+export const maxReviewers = 8
 
 const reviewerAssignmentSchema = z.object({
   configuration: agentConfigurationSchema,
@@ -71,7 +71,7 @@ export type ReviewScope = z.infer<typeof reviewScopeSchema>
 export type ReviewScopeKind = ReviewScope['kind']
 
 export const defaultTimeoutMinutes = 10
-export const maxTimeoutMinutes = 120
+export const maxTimeoutMinutes = 30
 export const timeoutMinutesSchema = z.number().int().min(1).max(maxTimeoutMinutes)
 
 export const reviewSessionDraftSchema = z.object({

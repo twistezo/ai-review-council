@@ -1,77 +1,62 @@
 # Architecture
 
-Usage: [README.md](README.md).
-
 ## Flow
 
-```mermaid
-flowchart LR
-  cli[cli.tsx] --> wizard[ui/app.tsx]
-  wizard --> draft[ReviewSessionDraft]
-  draft --> reviewers[reviewers in parallel]
-  reviewers --> council[council]
-  council --> report[report preview: c copy, o open]
-  reviewers -. events .-> table[progress table]
-  council -. events .-> table
+Independent reviews become one verified, actionable report.
+
+```text
+CLI options + wizard
+         │
+         ▼
+  validated session
+  repository, scope, agents, task description
+         │
+         ▼
+  review workspace
+  frozen diff + changed-file list
+         │
+         ├──► reviewer 1 ──┐
+         ├──► reviewer 2 ──┤  independent, parallel
+         └──► reviewer N ──┘
+                           │
+                           ▼
+                  reports + failures
+                           │
+              ┌────────────┴─────────────┐
+              │                          │
+       at least one report           all failed
+              │                          │
+              ▼                          ▼
+           council                 stop with error
+   verify against repository
+   merge and prioritize findings
+              │
+       ┌──────┴────────┐
+       │               │
+    success          failure
+       │               │
+       ▼               ▼
+ verified report   unverified reviewer reports
+       │               │
+       └───────┬───────┘
+               ▼
+       terminal preview
+       copy / open Markdown
 ```
 
-The wizard ends in a validated `ReviewSessionDraft` ([`src/domain/review-session.ts`](src/domain/review-session.ts)); everything after it reads only that object.
+- [`scope/`](src/scope) resolves the review scope; [`review/`](src/review) prepares inputs, coordinates agents and handles reports.
+- [`instructions/`](src/instructions) assembles each agent's rules; [`execution/`](src/execution) runs the CLI processes and handles progress, timeouts and cancellation.
+- The diff is frozen; agents read current repository files. Reviewers do not see each other's reports; the council receives their results and failures.
 
-## Modules
+## Agent permissions
 
-| Folder | Owns |
-|---|---|
-| [`src/domain`](src/domain) | Zod schemas and types for the session |
-| [`src/process`](src/process) | Spawning CLIs with argument arrays, never a shell |
-| [`src/providers`](src/providers) | Per CLI: login check, model catalog |
-| [`src/git`](src/git), [`src/scope`](src/scope) | Read-only Git, review scope, secret file exclusion |
-| [`src/execution`](src/execution) | One agent: launch flags, event parsing, timeout, cancel, cleanup |
-| [`src/review`](src/review) | One run: frozen diff, agent messages, reviewers then council, report output |
-| [`src/ui`](src/ui) | Ink screens; colors only from [`theme.ts`](src/ui/theme.ts), ANSI names so the terminal theme sets shades |
+Agents run unattended with read-only access and restricted tools. Provider-specific launch flags and restrictions live in [`agent-commands.ts`](src/execution/agent-commands.ts).
 
-Services reach the UI through `AppServices` ([`src/app-services.ts`](src/app-services.ts)); tests pass fakes.
+## Review instructions
 
-## Providers
+All agents receive [`docs/common.md`](docs/common.md), their role and specialization (`code`, `security`, `ui-ux`):
 
-Settings verified against the live CLIs.
-
-| | Claude Code | Codex |
-|---|---|---|
-| Catalog | `initialize` request on `claude -p --input-format stream-json` | `model/list` on `codex app-server` |
-| Run | `claude -p --output-format stream-json` | `codex exec --json -` |
-| Instructions / message | `--append-system-prompt` / stdin | `-c developer_instructions=…` / stdin |
-| Read-only | `--tools Read,Grep,Glob`, `--strict-mcp-config`, `--permission-mode dontAsk` | `--sandbox read-only`, `approval_policy="never"`, `mcp_servers={}`, extras off |
-| Repository config | `disableAllHooks`, empty `apiKeyHelper`: both run shell commands; its `CLAUDE.md` and skills still load | `hooks` off |
-| Secret files | `Read(**/…)` deny rules from [`excluded-files.ts`](src/scope/excluded-files.ts); `.env.example` is denied too | Only the prompt asks; the sandbox reads the whole disk |
-| What remains | Nothing; without `--strict-mcp-config` claude.ai connectors stay | A read-only shell, its only way to read files; `code_mode_host` must stay on |
-
-Global `~/.claude/CLAUDE.md` and `~/.codex/AGENTS.md` reach the agents on purpose. A new provider needs an id in `providerIds`, an adapter in `src/providers`, and a process builder and line parser in [`agent-commands.ts`](src/execution/agent-commands.ts).
-
-## Agent run
-
-[`run-agent-process.ts`](src/execution/run-agent-process.ts):
-
-- **Process group**: agents start detached; timeout, cancel and exit stop the whole group (`SIGTERM`, `SIGKILL` after 5 s); once the CLI exits, whatever is left in its group gets `SIGKILL`. [`shutdown.ts`](src/shutdown.ts) also stops them and removes temp folders on `Ctrl+C`, `SIGHUP`, `SIGINT` and `SIGTERM`, then prints a summary where the terminal remains; a `SIGKILL` of the app leaves agents running.
-- **Result**: the final message of a completed turn. No report, an agent error or an early exit is a failure, never an empty review.
-- **Progress**: events become phases (`starting`, `reading`, `writing`, `done`, `failed`) plus a lookup count (each read, search or Codex shell command) and the tokens the provider reports at the end.
-
-## Review run
-
-[`run-review.ts`](src/review/run-review.ts):
-
-1. Freezes the diff of tracked changes in a temp folder; new files are listed to read in full.
-2. Numbers reviewers in table order (provider, model, effort) so the council report matches.
-3. Runs reviewers in parallel, then the council with every report, failed ones included; no council if all fail.
-4. Trims text before the report title; [`report-result.tsx`](src/ui/components/report-result.tsx) previews it (title, first paragraph, `### ` headings from [`report-preview.ts`](src/review/report-preview.ts)) and, on `c` or `o`, formats it with Prettier (code blocks untouched) to copy it or open it from a temp file ([`open-report.ts`](src/review/open-report.ts)). [`print-outcome.ts`](src/print-outcome.ts) prints only notes for stderr and the exit code.
-
-## Testing
-
-| Layer | How |
-|---|---|
-| Parsing, scope, catalogs, formatting | Recorded or hand-made samples |
-| Git, CLI status | Fake `RunCommand` |
-| Process runner, signal cleanup | Real child processes acting as a CLI |
-| Review run | Fake `runAgent` and workspace |
-| Wizard | `ink-testing-library` flows with fake services |
-
-Live checks use the cheapest models at the lowest effort and are not part of `npm test`.
+| Role                     | Instructions                                                                             |
+| ------------------------ | ---------------------------------------------------------------------------------------- |
+| Reviewer: find issues    | [`reviewer.md`](docs/reviewer/reviewer.md) + `docs/reviewer/<type>-review.md`            |
+| Council: verify findings | [`council.md`](docs/council/council.md) + selected `docs/council/<type>-review.md` files |

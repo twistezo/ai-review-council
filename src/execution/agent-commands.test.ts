@@ -26,7 +26,7 @@ describe('buildClaudeProcess', () => {
         '--effort',
         'low',
         '--tools',
-        'Read,Grep,Glob',
+        'Read,Grep,Glob,Skill',
         '--permission-mode',
         'dontAsk',
         '--strict-mcp-config',

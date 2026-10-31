@@ -2,6 +2,20 @@
 
 All notable changes to this project. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## 2.0.0 - 2026-10-31
+
+### Added
+
+- Agents can use the skills they have: Claude Code through its `Skill` tool (built-in skills such as `security-review` and the user's own), Codex by reading the skills it lists. A prompt like `use /code-review` now works with both.
+
+### Changed
+
+- **Breaking:** the entire codebase scope is `--scope codebase`; `--scope full` is rejected.
+- **Breaking:** `--timeout` accepts 1 to 30 minutes per agent, down from 120.
+- Up to 8 reviewers, up from 6 (`--reviewers` and the count question).
+- Agents are told they work alone: sub-agents are unavailable, so a skill's sub-agent steps are done by the agent itself.
+- README and ARCHITECTURE are shorter; the README says why the app runs on subscription limits instead of provider APIs.
+
 ## 1.4.0 - 2026-10-31
 
 ### Added

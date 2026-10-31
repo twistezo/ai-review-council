@@ -15,38 +15,38 @@ describe('parseCliOptions', () => {
       ok: true,
       options: { directory: '~/my app', language: 'pl', scope: null, reviewerCount: null, timeoutMinutes: 3, showHelp: false },
     })
-    expect(parseCliOptions(['--dir=/repo', '--lang', 'EN', '--timeout=120'])).toEqual({
+    expect(parseCliOptions(['--dir=/repo', '--lang', 'EN', '--timeout=30'])).toEqual({
       ok: true,
-      options: { directory: '/repo', language: 'en', scope: null, reviewerCount: null, timeoutMinutes: 120, showHelp: false },
+      options: { directory: '/repo', language: 'en', scope: null, reviewerCount: null, timeoutMinutes: 30, showHelp: false },
     })
   })
 
   it('reads the scope as uncommitted, the entire codebase or a commit hash', () => {
     expect(parseCliOptions(['-s', 'uncommitted'])).toMatchObject({ ok: true, options: { scope: { kind: 'uncommitted' } } })
     expect(parseCliOptions(['--scope', 'Uncommitted'])).toMatchObject({ ok: true, options: { scope: { kind: 'uncommitted' } } })
-    expect(parseCliOptions(['--scope', ' Full '])).toMatchObject({ ok: true, options: { scope: { kind: 'full' } } })
+    expect(parseCliOptions(['--scope', ' Codebase '])).toMatchObject({ ok: true, options: { scope: { kind: 'full' } } })
     expect(parseCliOptions(['--scope=be921ebca'])).toMatchObject({
       ok: true,
       options: { scope: { kind: 'since-commit', commitRef: 'be921ebca' } },
     })
   })
 
-  it.each(['main', 'HEAD~1', 'abc', 'staged'])('rejects the scope %j', (value) => {
+  it.each(['main', 'HEAD~1', 'abc', 'staged', 'full'])('rejects the scope %j', (value) => {
     expect(parseCliOptions(['--scope', value])).toEqual({
       ok: false,
-      error: 'The --scope option needs `uncommitted`, `full` or a commit hash (4 to 40 hexadecimal characters).',
+      error: 'The --scope option needs `uncommitted`, `codebase` or a commit hash (4 to 40 hexadecimal characters).',
     })
   })
 
   it('reads the number of reviewers', () => {
     expect(parseCliOptions(['-r', '2'])).toMatchObject({ ok: true, options: { reviewerCount: 2 } })
-    expect(parseCliOptions(['--reviewers=6'])).toMatchObject({ ok: true, options: { reviewerCount: 6 } })
+    expect(parseCliOptions(['--reviewers=8'])).toMatchObject({ ok: true, options: { reviewerCount: 8 } })
   })
 
-  it.each(['0', '7', '1.5', 'two'])('rejects the reviewer count %j', (value) => {
+  it.each(['0', '9', '1.5', 'two'])('rejects the reviewer count %j', (value) => {
     expect(parseCliOptions(['--reviewers', value])).toEqual({
       ok: false,
-      error: 'The --reviewers option needs a whole number from 1 to 6.',
+      error: 'The --reviewers option needs a whole number from 1 to 8.',
     })
   })
 
@@ -57,10 +57,10 @@ describe('parseCliOptions', () => {
     })
   })
 
-  it.each(['0', '121', '1.5', 'ten', ''])('rejects the timeout %j', (value) => {
+  it.each(['0', '31', '1.5', 'ten', ''])('rejects the timeout %j', (value) => {
     expect(parseCliOptions(['--timeout', value])).toEqual({
       ok: false,
-      error: 'The --timeout option needs whole minutes from 1 to 120.',
+      error: 'The --timeout option needs whole minutes from 1 to 30.',
     })
   })
 

@@ -23,6 +23,7 @@ export type AgentProcessSpec = {
 }
 
 // Read and search only: no shell, no MCP servers, no permission prompts (verified in the CLI probes).
+// `Skill` runs the agent's own skills, built-in or the user's; with no `Agent` tool they start no sub-agents.
 // Hooks and `apiKeyHelper` from the reviewed repository's settings would run shell commands, so both are off;
 // its `CLAUDE.md` and skills still load.
 export const buildClaudeProcess = ({
@@ -39,7 +40,7 @@ export const buildClaudeProcess = ({
     configuration.model,
     ...(configuration.effort === null ? [] : ['--effort', configuration.effort]),
     '--tools',
-    'Read,Grep,Glob',
+    'Read,Grep,Glob,Skill',
     '--permission-mode',
     'dontAsk',
     '--strict-mcp-config',
