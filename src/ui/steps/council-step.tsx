@@ -20,8 +20,9 @@ export const CouncilStep = ({ models, value, onSubmit, onBack }: CouncilStepProp
 
   return (
     <StepFrame title="Council agent" hints="↑↓ row · ←→ column · Enter confirm" onBack={onBack}>
-      <Box marginBottom={1}>
-        <Text dimColor>Verifies the reviewers' findings and writes the final report.</Text>
+      <Box flexDirection="column" marginBottom={1}>
+        <Text dimColor>Verifies findings and writes the final report.</Text>
+        <Text dimColor>Use your strongest model.</Text>
       </Box>
       <AgentPicker
         models={models}

@@ -69,8 +69,9 @@ export const ReviewersStep = ({ models, value, presetCount, onSubmit, onBack }: 
   if (editing === null) {
     return (
       <StepFrame title="Reviewers" hints="↑↓ row · Enter confirm" onBack={onBack}>
-        <Box marginBottom={1}>
-          <Text dimColor>How many reviewers? Each one reviews independently.</Text>
+        <Box flexDirection="column" marginBottom={1}>
+          <Text dimColor>How many reviewers? Each works independently.</Text>
+          <Text dimColor>Mix providers and models to catch more.</Text>
         </Box>
         <SelectList
           items={Array.from({ length: maxReviewers }, (_, index) => ({
