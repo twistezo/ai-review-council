@@ -1,5 +1,14 @@
 # Architecture
 
+## Repository layout
+
+| Path                    | Holds                                   |
+| ----------------------- | --------------------------------------- |
+| [`src/`](src)           | App source and tests                    |
+| [`docs/`](docs)         | Agent instructions shipped with the app |
+| [`demo/`](demo)         | Demo recording and its review target    |
+| [`dev-docs/`](dev-docs) | Documentation for developing this repo  |
+
 ## Flow
 
 Independent reviews become one verified, actionable report.
@@ -54,7 +63,7 @@ Agents run unattended with read-only access and restricted tools. Provider-speci
 
 ## Review instructions
 
-All agents receive [`docs/common.md`](docs/common.md), their role and specialization (`code`, `security`, `ui-ux`):
+All agents receive [`docs/common.md`](docs/common.md), their role and review type (`code`, `security`, `ui-ux`):
 
 | Role                     | Instructions                                                                             |
 | ------------------------ | ---------------------------------------------------------------------------------------- |

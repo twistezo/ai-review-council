@@ -5,16 +5,16 @@ Independent reviews of a selected code scope, followed by verification and a con
 ## Language
 
 **Reviewer**:
-An agent assigned to independently examine the review scope with a particular review focus.
+An agent assigned to independently examine the review scope with a particular review type.
 _Avoid_: Council member
 
-**Review focus**:
+**Review type**:
 The perspective assigned to a reviewer: code, security, or UI/UX.
-_Avoid_: Review scope
+_Avoid_: Review focus, specialization, review scope
 
 **Review scope**:
 The code selected for examination by the reviewers and council agent.
-_Avoid_: Review focus
+_Avoid_: Review type
 
 **Reviewer report**:
 An individual reviewer's assessment, containing findings awaiting verification by the council agent.

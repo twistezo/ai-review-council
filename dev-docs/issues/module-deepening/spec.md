@@ -4,8 +4,8 @@ Concentrate ownership of the review lifecycle, progress, report interpretation, 
 
 Sources, both dated 2026-11-01:
 
-- [Codebase design assessment](../../2026-11-01-codebase-assessment.md): all five priorities, problems and validation.
-- [Architecture review](../../2026-11-01-architecture-review.html): diagrams, deletion tests and test surfaces for priorities 1-3.
+- [Codebase design assessment](../../reports/2026-11-01-codebase-assessment.md): all five priorities, problems and validation.
+- [Architecture review](../../reports/2026-11-01-architecture-review.html): diagrams, deletion tests and test surfaces for priorities 1-3.
 
 | Ticket | Assessment priority | Status |
 | --- | --- | --- |
