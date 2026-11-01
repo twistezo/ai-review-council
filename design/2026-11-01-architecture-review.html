@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI Review Council — module deepening opportunities</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script type="module">
+import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+mermaid.initialize({ startOnLoad: true, theme: 'neutral', securityLevel: 'strict' });
+</script>
+<style>
+body{margin:0;background:#f6f5f0;color:#202b36;font:16px/1.6 system-ui,sans-serif}main{max-width:1120px;margin:auto;padding:48px 24px}h1,h2,h3{line-height:1.2}h1{font:44px/1.1 Georgia,serif;max-width:800px}h2{font:30px/1.2 Georgia,serif}a{color:#126752;text-decoration:underline}article,.recommendation{background:white;border:1px solid #d9ded8;border-radius:14px;padding:28px;margin:32px 0}.meta,.files,small{font-size:13px;color:#52616c}.badge{display:inline-block;padding:4px 10px;border-radius:20px;background:#e3f3e9;color:#17613c;font-size:13px;font-weight:650}.amber{background:#fff0cf;color:#765200}.tag{margin-left:8px;color:#667;font-size:13px}.pair{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin:24px 0}.panel{background:#f8faf9;border:1px solid #dce2de;border-radius:10px;padding:20px}.panel h3{font-size:12px;text-transform:uppercase;letter-spacing:2px;color:#68766d}.box{border:1px solid #8b9b91;border-radius:6px;padding:12px;margin:10px 0;background:white;text-align:center}.deep{border:3px solid #153c32;background:#183f35;color:white;padding:22px 12px;border-radius:8px;text-align:center}.deep small{color:#c3dbd1}.seam{border-top:2px dashed #78998e;margin:16px 0;padding-top:10px;text-align:center;font-size:13px}.arrow{text-align:center;color:#5b796e}.leak{color:#b43232}.facts{display:grid;grid-template-columns:120px 1fr;gap:10px 16px}.facts dt{font-weight:650}.facts dd{margin:0}.wins{display:flex;gap:24px;flex-wrap:wrap;padding-left:20px}.recommendation{background:#153c32;color:white}.recommendation a{color:#c3f1d9}code{font-size:.88em;overflow-wrap:anywhere}.mermaid{font-size:12px;white-space:pre-wrap}.note{border-left:3px solid #c8b46b;padding-left:14px} @media(max-width:760px){.pair{grid-template-columns:1fr}.facts{grid-template-columns:1fr}h1{font-size:34px}article{padding:18px}} @media print{article{break-inside:avoid}body{background:white}main{padding:0}}
+</style>
+</head>
+<body><main>
+<header><div class="meta">AI REVIEW COUNCIL · 2026-11-01 · HEAD <code>1426c33</code></div>
+<h1>Less knowledge required of callers. More responsibility inside the module.</h1>
+<p class="meta">Static review of code and tests; neither the application nor tests were run. Proposals are not implemented.</p>
+<nav><a href="#lifecycle">01 Lifecycle</a> · <a href="#progress">02 Progress</a> · <a href="#providers">03 Providers</a></nav>
+<p class="meta">Solid box = module · dashed line = seam · red text = responsibility leakage · dark box = deep module</p>
+</header>
+<details><summary>Scope and selection rationale</summary>
+<ul><li>Reviewed history from <code>fa2bec3</code> to <code>1426c33</code>. Focus areas: <code>9aa913f</code> (progress and reports), <code>4260885</code> (agent execution), <code>d4e3637</code> (run completion in the UI).</li>
+<li>Terminology: <a href="GLOSSARY.md">GLOSSARY.md</a>. Flow context: <a href="../ARCHITECTURE.md">ARCHITECTURE.md</a>. No ADRs or additional nested <code>AGENTS.md</code> files were found.</li>
+<li>A visual shortlist and rationale for directions from the <a href="2026-11-01-codebase-assessment.md">earlier assessment</a>; details of the remaining proposals stay there.</li>
+<li><code>demo/bug-farm/</code> was excluded. <code>docs/</code> contains the instructions the application ships to its agents.</li>
+<li>“After” diagrams show ownership, without designing a new interface. Styling and Mermaid diagrams load libraries from CDNs; the remaining content and CSS diagrams are available offline.</li></ul></details>
+<article id="lifecycle"><span class="badge">Strong</span><span class="tag">local-substitutable</span>
+<h2>01 · Complete ownership of the review lifecycle</h2>
+<p class="files"><a href="../src/review/run-review.ts"><code>src/review/run-review.ts:87–158</code></a> · <a href="../src/review/review-workspace.ts"><code>src/review/review-workspace.ts</code></a> · <a href="../src/execution/run-agent-process.ts"><code>src/execution/run-agent-process.ts</code></a></p>
+<div class="pair"><div class="panel"><h3>Before · possible sequence</h3><div class="box">Reviewer A is still reading the review scope</div><div class="arrow">in parallel</div><div class="box">Reviewer B instructions → exception</div><div class="arrow leak">Promise.all rejects ↓</div><div class="box leak">finally → cleanup deletes A’s inputs</div></div>
+<div class="panel"><h3>After · ownership in one place</h3><div class="box">Caller awaits the result</div><div class="seam">existing runReview seam</div><div class="deep">Review lifecycle module<br><small>preparation → agent execution<br>completion / cancellation → await settlement<br>cleanup → result or error</small></div></div></div>
+<dl class="facts"><dt>Problem</dt><dd>The interface does not guarantee that agents have finished for both returned errors and exceptions thrown by dependencies.</dd>
+<dt>Solution</dt><dd>The <code>runReview</code> implementation owns completion of started tasks before removing the workspace; process mechanics remain internal.</dd>
+<dt>Deletion test</dt><dd>Deleting <code>runReview</code> would move coordination into the UI: this module already has depth. Strengthen its guarantees rather than replacing it with a new shallow module.</dd>
+<dt>Adapter / seam</dt><dd>Existing execution and workspace dependencies allow a controlled test adapter. No additional seam is needed.</dd>
+<dt>Test surface</dt><dd>Through the <code>runReview</code> interface: one reviewer remains active while reading the other’s instructions throws; cleanup happens only after the first finishes. Existing <a href="../src/review/run-review.test.ts">tests</a> cover returned errors and cancellation, but not this sequence.</dd></dl>
+<ul class="wins"><li>locality: cleanup alongside coordination</li><li>leverage: one completion guarantee</li><li>depth: exceptions handled internally</li></ul>
+<p class="note">This risk follows from control-flow analysis; it has not been reproduced in an executed test.</p></article>
+<article id="progress"><span class="badge">Strong</span><span class="tag">in-process</span>
+<h2>02 · Centralize ownership of review progress</h2>
+<p class="files"><a href="../src/review/run-review.ts"><code>src/review/run-review.ts</code></a> · <a href="../src/ui/steps/run-screen.tsx"><code>src/ui/steps/run-screen.tsx</code></a> · <a href="../src/ui/run-progress.ts"><code>src/ui/run-progress.ts</code></a> · <a href="../src/execution/agent-progress.ts"><code>src/execution/agent-progress.ts</code></a></p>
+<div class="pair"><div class="panel"><h3>Before · shared knowledge</h3><pre class="mermaid">flowchart TD
+ R[runReview: IDs and numbering] -->|update function| U[RunScreen: initialization and state]
+ P[agent-progress: transitions] --> R
+ U --> T[run-progress: separate sorting]
+ T --> V[Reviewer table]
+ style U stroke:#b43232,stroke-width:2px
+</pre></div><div class="panel"><h3>After · state alongside events</h3><div class="deep">Review progress module<br><small>reviewer identity · ordering<br>initial state · transitions · result</small></div><div class="seam">seam: progress observation</div><div class="box">UI: formatting and display</div><div class="arrow">↓</div><div class="box">Reviewer table</div></div></div>
+<dl class="facts"><dt>Problem</dt><dd>The interface requires the UI to initialize compatible state and apply update functions; reviewer ordering is defined in two places.</dd>
+<dt>Solution</dt><dd>Keep state, identifiers, and ordering with the review run; leave presentation in the UI.</dd>
+<dt>Deletion test</dt><dd>Removing initialization and update responsibilities from the UI concentrates knowledge alongside events. Moving <code>applyAgentEvent</code> alone adds no depth: a contract requiring the same caller knowledge remains shallow.</dd>
+<dt>Adapter / seam</dt><dd>This is internal in-process logic; an additional adapter would be hypothetical. Keep the existing execution adapter and observation seam.</dd>
+<dt>Test surface</dt><dd>Tests through the run interface: numbering consistent with the reviewer report, partial failure, cancellation, and token usage. <a href="../src/review/run-review.test.ts">The current setup</a> builds its own progress map; retain <a href="../src/ui/run-progress.test.tsx">table tests</a> for presentation.</dd></dl>
+<ul class="wins"><li>locality: state alongside events</li><li>leverage: UI only presents</li><li>depth: fewer caller responsibilities</li></ul>
+<p class="note">Tackle after 01: both directions affect <code>runReview</code>. They do not require a single large refactor.</p></article>
+<article id="providers"><span class="badge amber">Worth exploring</span><span class="tag">ports &amp; adapters</span>
+<h2>03 · Keep provider behavior with its adapter</h2>
+<p class="files"><a href="../src/providers/provider-adapter.ts"><code>src/providers/provider-adapter.ts</code></a> · <a href="../src/providers/codex-adapter.ts"><code>codex-adapter.ts</code></a> · <a href="../src/providers/claude-adapter.ts"><code>claude-adapter.ts</code></a> · <a href="../src/execution/agent-commands.ts"><code>src/execution/agent-commands.ts</code></a> · <a href="../src/execution/agent-events.ts"><code>agent-events.ts</code></a> · <a href="../src/execution/run-agent.ts"><code>run-agent.ts</code></a></p>
+<div class="pair"><div class="panel"><h3>Before · split by operation</h3><div class="box">ProviderAdapter<br><small>Codex / Claude: detection + models</small></div><div class="box">processBuilders<br><small>Codex / Claude: commands</small></div><div class="box">lineParsers<br><small>Codex / Claude: events</small></div><div class="arrow leak">Provider change → several locations</div></div>
+<div class="panel"><h3>After · locality by provider</h3><div class="seam">provider selection seam</div><div class="deep">Codex adapter &nbsp; | &nbsp; Claude adapter<br><small>Each owns its rules for<br>detection, models, and execution</small></div><div class="arrow">↓</div><div class="box">Shared process implementation<br><small>timeout · cancellation · cleanup</small></div></div></div>
+<dl class="facts"><dt>Problem</dt><dd>The existing adapter interface covers the catalog, but separate maps select execution behavior; understanding a provider requires moving between modules.</dd>
+<dt>Solution</dt><dd>Gather provider-specific rules with each adapter while retaining the shared process execution module.</dd>
+<dt>Deletion test</dt><dd><code>run-agent.ts</code> is a shallow selector; deleting it alone moves selection to the caller. Depth increases only when the caller no longer needs to know the builder–parser pair.</dd>
+<dt>Adapter / seam</dt><dd>Codex and Claude are two real adapters, which justify the seam. Do not expand the interface with hypothetical resume support or a plugin registry.</dd>
+<dt>Test surface</dt><dd>Keep <a href="../src/execution/agent-commands.test.ts">launch restriction tests</a> and <a href="../src/execution/agent-events.test.ts">parser tests</a>; also use the execution interface to verify that each provider’s command, events, and result work together with a controlled process.</dd></dl>
+<ul class="wins"><li>locality: provider rules together</li><li>leverage: shared process execution</li><li>depth: parser selection hidden</li></ul>
+<p class="note">Lower priority: the current maps are small and typed. The payoff grows with the next provider protocol change.</p></article>
+<section class="recommendation"><div class="meta" style="color:#b9d6c9">TOP RECOMMENDATION</div><h2><a href="#lifecycle">01 · Review lifecycle</a></h2><p>First guarantee that agents finish before cleanup: this protects an active reviewer’s inputs through the existing seam without expanding the interface.</p></section>
+<footer class="meta">Next: choose one candidate and clarify constraints; no implementation at this stage.</footer>
+</main></body></html>
