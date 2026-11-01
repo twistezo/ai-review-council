@@ -8,8 +8,12 @@ Similar tools usually bill per token through provider APIs. This one runs locall
 
 Docs:
 
-- [CHANGELOG.md](CHANGELOG.md).
-- [ARCHITECTURE.md](ARCHITECTURE.md).
+- [CHANGELOG.md](CHANGELOG.md)
+- [ARCHITECTURE.md](ARCHITECTURE.md)
+
+## Demo
+
+<img src="demo/wizard.gif" alt="AI Review Council demo" width="600">
 
 ## Requirements
 

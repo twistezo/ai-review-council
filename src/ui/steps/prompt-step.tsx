@@ -18,8 +18,9 @@ export const PromptStep = ({ value, readClipboard, onSubmit, onBack }: PromptSte
 
   return (
     <StepFrame title="Review prompt" hints="Enter new line · Ctrl+D confirm · Cmd+V paste" onBack={onBack}>
-      <Box marginBottom={1}>
-        <Text dimColor>Add context to guide the review. Shared by all agents.</Text>
+      <Box flexDirection="column" marginBottom={1}>
+        <Text dimColor>Review context, goals and skills. Shared by all agents.</Text>
+        <Text dimColor>Read-only local review. No live web access.</Text>
       </Box>
       <MultilineInput
         value={prompt}

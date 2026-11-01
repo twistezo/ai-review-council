@@ -2,6 +2,16 @@
 
 All notable changes to this project. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## 2.0.2 - 2026-11-01
+
+### Added
+
+- Recorded demo in the README, with a VHS tape and an intentionally buggy TypeScript fixture in `demo/`.
+
+### Changed
+
+- Prompt help mentions shared context, goals and skills, plus read-only local review without live web access.
+
 ## 2.0.1 - 2026-10-31
 
 ### Changed
