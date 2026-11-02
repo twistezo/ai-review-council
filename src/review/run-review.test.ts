@@ -109,7 +109,7 @@ describe('runReview', () => {
     expect(councilLaunch?.message).toContain(
       'Language of the final report: Polish. Write every part of it in Polish: headings, field names and values included.',
     )
-    expect(councilLaunch?.message).toContain('### Reviewer 1 · Claude Code · Haiku 5.5 · low · security')
+    expect(councilLaunch?.message).toContain('### Reviewer 1 · Claude · Haiku 5.5 · low · security')
     expect(councilLaunch?.message).toContain('### Finding from codex')
     expect(councilLaunch?.instructions).toBe(
       'common.md + council/council.md + council/code-review.md + council/security-review.md',
@@ -119,6 +119,27 @@ describe('runReview', () => {
     expect(run.cleanup).toHaveBeenCalledOnce()
     expect(run.progress.get('reviewer-2')).toMatchObject({ phase: 'done', note: '1 finding', reads: 1 })
     expect(run.progress.get('council')).toMatchObject({ phase: 'done', note: '1 finding' })
+  })
+
+  it('passes a Copilot reviewer report to a Codex council', async () => {
+    const copilotAuto: AgentConfiguration = { provider: 'copilot', model: 'auto', modelLabel: 'Auto', effort: null }
+    const run = setup((launch) =>
+      isCouncil(launch)
+        ? { ok: true, report: '# Review\n### Verified finding', sessionId: 'c' }
+        : { ok: true, report: '### Finding from Copilot', sessionId: 'r' },
+    )
+
+    const result = await runReview(
+      { ...session, council: codexLow, reviewers: [{ configuration: copilotAuto, reviewType: 'code' }] },
+      run.dependencies,
+      run.onProgress,
+    )
+
+    expect(result).toMatchObject({ kind: 'reported', report: '# Review\n### Verified finding' })
+    const councilLaunch = run.launches.find(isCouncil)
+    expect(councilLaunch?.configuration.provider).toBe('codex')
+    expect(councilLaunch?.message).toContain('### Reviewer 1 · Copilot · Auto')
+    expect(councilLaunch?.message).toContain('### Finding from Copilot')
   })
 
   it('lets the council work with the reports that came in when one reviewer fails', async () => {

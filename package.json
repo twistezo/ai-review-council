@@ -1,7 +1,7 @@
 {
   "name": "@twistezo/ai-review-council",
-  "version": "2.0.2",
-  "description": "Terminal app that runs independent Codex and Claude Code reviewers and merges their results",
+  "version": "2.1.0",
+  "description": "Terminal app that runs independent Codex, Claude Code and GitHub Copilot reviewers and merges their results",
   "license": "MIT",
   "keywords": [
     "code-review",

@@ -4,6 +4,7 @@ import { commandResult, fakeRunCommand } from '../test-support/fakes.js'
 import { checkCliStatus } from './check-cli-status.js'
 import { parseClaudeInitializeResponse } from './claude-adapter.js'
 import { parseCodexModelPage } from './codex-adapter.js'
+import { createCopilotAdapter } from './copilot-adapter.js'
 import { defaultEffort, effortOptions, formatConfiguration, toCatalogModels } from './model-catalog.js'
 
 const codexModel = (model: string, hidden: boolean): Record<string, unknown> => ({
@@ -98,7 +99,7 @@ describe('model catalog', () => {
 
   it('formats configurations for lists and the summary', () => {
     expect(formatConfiguration({ provider: 'claude', model: 'opus', modelLabel: 'Opus', effort: 'high' })).toBe(
-      'Claude Code · Opus · high',
+      'Claude · Opus · high',
     )
     expect(formatConfiguration({ provider: 'codex', model: 'gpt', modelLabel: 'gpt', effort: null })).toBe(
       'Codex · gpt · default',
@@ -121,7 +122,13 @@ describe('checkCliStatus', () => {
       'codex login status': commandResult(),
     })
 
-    expect(await checkCliStatus(run, check)).toEqual({ provider: 'codex', version: 'codex-cli 0.165.0', problem: null, fix: null })
+    expect(await checkCliStatus(run, check)).toEqual({
+      provider: 'codex',
+      version: 'codex-cli 0.165.0',
+      problem: null,
+      fix: null,
+      loginChecked: true,
+    })
   })
 
   it('blocks with an install fix when the CLI is missing', async () => {
@@ -140,5 +147,75 @@ describe('checkCliStatus', () => {
 
     expect(status.problem).toBe('Not logged in.')
     expect(status.fix).toBe('login')
+  })
+
+  it('passes without a login check when the CLI has no login status command', async () => {
+    const run = fakeRunCommand({ 'codex --version': commandResult({ stdout: 'codex-cli 0.165.0' }) })
+    const status = await checkCliStatus(run, { ...check, loginStatusArgs: null })
+
+    expect(status.problem).toBeNull()
+    expect(status.loginChecked).toBe(false)
+  })
+
+  it('reports a failing CLI apart from a missing one', async () => {
+    const run = fakeRunCommand({ 'codex --version': commandResult({ exitCode: 1, stderr: 'broken install' }) })
+    const status = await checkCliStatus(run, check)
+
+    expect(status.problem).toBe('`codex --version` failed: broken install')
+    expect(status.fix).toBe('install')
+  })
+})
+
+describe('createCopilotAdapter', () => {
+  it('prefers the standalone runtime when both are installed', async () => {
+    const adapter = createCopilotAdapter(
+      fakeRunCommand({
+        'copilot --version': commandResult({ stdout: 'standalone' }),
+        'gh copilot -- --version': commandResult({ stdout: 'fallback' }),
+      }),
+    )
+    expect((await adapter.checkStatus()).version).toBe('standalone')
+    expect(adapter.command()).toBe('copilot')
+  })
+
+  it('retains the gh fallback for execution when standalone is absent', async () => {
+    const adapter = createCopilotAdapter(
+      fakeRunCommand({ 'gh copilot -- --version': commandResult({ stdout: 'fallback' }) }),
+    )
+    expect((await adapter.checkStatus()).problem).toBeNull()
+    expect(adapter.command()).toBe('gh')
+  })
+
+  it('reports a broken standalone runtime rather than switching accounts through a fallback', async () => {
+    const adapter = createCopilotAdapter(
+      fakeRunCommand({
+        'copilot --version': commandResult({ exitCode: 1, stderr: 'broken' }),
+        'gh copilot -- --version': commandResult({ stdout: 'fallback' }),
+      }),
+    )
+    expect((await adapter.checkStatus()).problem).toContain('broken')
+    expect(adapter.command()).toBe('copilot')
+  })
+
+  it('offers only Auto, without a named-model catalog or a login check', async () => {
+    const adapter = createCopilotAdapter(
+      fakeRunCommand({ 'gh copilot -- --version': commandResult({ stdout: '1.0.105\n' }) }),
+    )
+
+    expect(await adapter.checkStatus()).toEqual({
+      provider: 'copilot',
+      version: '1.0.105',
+      problem: null,
+      fix: null,
+      loginChecked: false,
+    })
+    expect(await adapter.listModels()).toEqual([{ id: 'auto', label: 'Auto', efforts: [] }])
+  })
+
+  it('blocks with an install fix when the CLI is missing', async () => {
+    const status = await createCopilotAdapter(fakeRunCommand({})).checkStatus()
+
+    expect(status.problem).toBe('`gh` was not found in PATH.')
+    expect(status.fix).toContain('GitHub CLI')
   })
 })

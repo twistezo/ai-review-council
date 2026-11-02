@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import { spawn } from 'node:child_process'
 import { createInterface } from 'node:readline'
 
@@ -5,8 +6,7 @@ import type { AgentEvent, ParseAgentLine } from './agent-events.js'
 import type { AgentProcessSpec } from './agent-commands.js'
 
 export type AgentRunResult =
-  | { ok: true; report: string; sessionId: string | null }
-  | { ok: false; error: string; sessionId: string | null }
+  { ok: true; report: string; sessionId: string | null } | { ok: false; error: string; sessionId: string | null }
 
 export type RunAgentOptions = {
   timeoutMs: number
@@ -158,6 +158,15 @@ export const runAgentProcess = (
     })
 
     child.on('close', (exitCode) => {
+      if (spec.usageFile !== undefined) {
+        try {
+          for (const event of spec.usageFile.parse(readFileSync(spec.usageFile.path, 'utf8'))) {
+            onEvent?.(event)
+          }
+        } catch {
+          // Cancelled or older runtimes may not write a complete usage report.
+        }
+      }
       if (stopReason !== null) {
         settle({ ok: false, error: stopReason, sessionId })
 

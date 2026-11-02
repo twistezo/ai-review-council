@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { parseClaudeLine, parseCodexLine } from './agent-events.js'
+import { parseClaudeLine, parseCodexLine, parseCopilotLine, parseCopilotUsage } from './agent-events.js'
 import { applyAgentEvent, finishProgress, startProgress } from './agent-progress.js'
 
 const line = (event: unknown): string => JSON.stringify(event)
@@ -55,14 +55,18 @@ describe('parseClaudeLine', () => {
       output_tokens_details: { thinking_tokens: 0 },
     }
 
-    expect(parseClaudeLine(line({ type: 'result', subtype: 'success', is_error: false, result: 'OK', usage }))).toEqual([
-      { kind: 'usage', tokens: 7_199 },
-      { kind: 'completed', text: 'OK' },
-    ])
-    expect(parseClaudeLine(line({ type: 'result', subtype: 'error_during_execution', is_error: true, usage }))).toEqual([
-      { kind: 'usage', tokens: 7_199 },
-      { kind: 'error', message: 'Claude Code ended with error_during_execution' },
-    ])
+    expect(parseClaudeLine(line({ type: 'result', subtype: 'success', is_error: false, result: 'OK', usage }))).toEqual(
+      [
+        { kind: 'usage', tokens: 7_199 },
+        { kind: 'completed', text: 'OK' },
+      ],
+    )
+    expect(parseClaudeLine(line({ type: 'result', subtype: 'error_during_execution', is_error: true, usage }))).toEqual(
+      [
+        { kind: 'usage', tokens: 7_199 },
+        { kind: 'error', message: 'Claude Code ended with error_during_execution' },
+      ],
+    )
   })
 
   it('ignores other events and lines that are not JSON', () => {
@@ -76,7 +80,10 @@ describe('parseCodexLine', () => {
     const events = [
       line({ type: 'thread.started', thread_id: 'th-1' }),
       line({ type: 'turn.started' }),
-      line({ type: 'item.started', item: { id: 'i1', type: 'command_execution', command: '/bin/zsh -lc "rg --files"' } }),
+      line({
+        type: 'item.started',
+        item: { id: 'i1', type: 'command_execution', command: '/bin/zsh -lc "rg --files"' },
+      }),
       line({ type: 'item.completed', item: { id: 'i1', type: 'command_execution', exit_code: 0 } }),
       line({ type: 'item.completed', item: { id: 'i2', type: 'agent_message', text: '# Report' } }),
       line({
@@ -105,7 +112,74 @@ describe('parseCodexLine', () => {
   })
 
   it('ignores warning items', () => {
-    expect(parseCodexLine(line({ type: 'item.completed', item: { type: 'error', message: 'feature off' } }))).toEqual([])
+    expect(parseCodexLine(line({ type: 'item.completed', item: { type: 'error', message: 'feature off' } }))).toEqual(
+      [],
+    )
+  })
+})
+
+// Shapes from a Copilot CLI 1.0.105 review of `demo/bug-farm`, trimmed and with local paths replaced.
+describe('parseCopilotLine', () => {
+  const finalReport = '- **`checkout.ts:20`** Subtotal ignores `item.quantity`.'
+
+  it('maps reads, the final answer and the CLI result of a captured run', () => {
+    const events = [
+      line({ type: 'session.mcp_servers_loaded', data: { servers: [] } }),
+      line({ type: 'assistant.turn_start', data: { turnId: '0' } }),
+      line({ type: 'assistant.reasoning_delta', data: { reasoningId: 'r1', deltaContent: 'Looking at' } }),
+      line({ type: 'assistant.reasoning', data: { reasoningId: 'r1', content: 'Looking at the diff' } }),
+      line({ type: 'assistant.message', data: { messageId: 'm1', content: '', toolRequests: [{}] } }),
+      line({
+        type: 'tool.execution_start',
+        data: { toolName: 'view', arguments: { path: '/tmp/review/change.diff' } },
+      }),
+      line({
+        type: 'tool.execution_start',
+        data: { toolName: 'rg', arguments: { pattern: 'quantity', paths: ['/repo'], output_mode: 'content' } },
+      }),
+      line({ type: 'assistant.turn_end', data: { turnId: '0' } }),
+      line({ type: 'assistant.message_start', data: { messageId: 'm2', phase: 'final_answer' } }),
+      line({ type: 'assistant.message_delta', data: { messageId: 'm2', deltaContent: '- **`checkout' } }),
+      line({ type: 'assistant.message', data: { messageId: 'm2', phase: 'final_answer', content: finalReport } }),
+      line({ type: 'session.usage_checkpoint', data: { totalPremiumRequests: 1 } }),
+      line({ type: 'assistant.idle', data: {} }),
+      line({ type: 'result', sessionId: 's-1', exitCode: 0, usage: { premiumRequests: 1 } }),
+    ].flatMap(parseCopilotLine)
+
+    // no usage event: the CLI reports requests, not tokens
+    expect(events).toEqual([
+      { kind: 'read', target: 'view /tmp/review/change.diff' },
+      { kind: 'read', target: 'rg quantity' },
+      { kind: 'message', text: finalReport },
+      { kind: 'session', sessionId: 's-1' },
+      { kind: 'completed', text: null },
+    ])
+  })
+
+  it('does not take a message between tool calls as the report', () => {
+    expect(parseCopilotLine(line({ type: 'assistant.message', data: { content: 'Let me check the tests.' } }))).toEqual(
+      [],
+    )
+  })
+
+  it('ignores events of sub-agent tool calls', () => {
+    expect(
+      parseCopilotLine(
+        line({ type: 'tool.execution_start', data: { toolName: 'view', parentToolCallId: 't1', arguments: {} } }),
+      ),
+    ).toEqual([])
+  })
+
+  it('reports a failed CLI result with its session', () => {
+    expect(parseCopilotLine(line({ type: 'result', sessionId: 's-1', exitCode: 1 }))).toEqual([
+      { kind: 'session', sessionId: 's-1' },
+      { kind: 'error', message: 'Copilot exited with code 1. Check Copilot login and usage limits.' },
+    ])
+  })
+
+  it('ignores lines that are not JSON or not events', () => {
+    expect(parseCopilotLine('not json')).toEqual([])
+    expect(parseCopilotLine(line({ data: {} }))).toEqual([])
   })
 })
 
@@ -125,5 +199,27 @@ describe('agent progress', () => {
       finishedAt: 5_000,
       note: 'Timed out after 10 min',
     })
+  })
+})
+
+describe('Copilot session token totals', () => {
+  it('counts fresh input, both caches and output once across all models', () => {
+    expect(
+      parseCopilotUsage(
+        JSON.stringify({
+          tokenDetails: {
+            input: { tokenCount: 15 },
+            cache_read: { tokenCount: 73093 },
+            cache_write: { tokenCount: 23062 },
+            output: { tokenCount: 3659 },
+          },
+          modelMetrics: { model: { usage: { inputTokens: 96170, outputTokens: 3659 } } },
+        }),
+      ),
+    ).toEqual([{ kind: 'usage', tokens: 99829 }])
+  })
+  it('keeps unknown usage unknown rather than inventing zero', () => {
+    expect(parseCopilotUsage('{}')).toEqual([])
+    expect(parseCopilotUsage('incomplete')).toEqual([])
   })
 })

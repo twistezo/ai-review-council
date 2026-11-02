@@ -1,4 +1,4 @@
-Output wizard.gif
+Output demo/wizard.gif
 
 Require node
 Require npx
@@ -14,7 +14,7 @@ Set Framerate 15
 Set TypingSpeed 35ms
 
 Hide
-Type "clear && cd .. && exec npx --no-install tsx src/cli.tsx"
+Type "clear && exec npx --no-install tsx src/cli.tsx"
 Enter
 Wait+Screen@60s /Report language/
 Show
@@ -67,11 +67,10 @@ Sleep 500ms
 Enter
 Sleep 500ms
 
-# Codex, GPT-6-Luna, low, ui-ux.
+# Copilot, Auto, default effort, ui-ux.
+Down 2
 Right
-Down 4
 Right
-Up
 Sleep 500ms
 Enter
 Sleep 500ms

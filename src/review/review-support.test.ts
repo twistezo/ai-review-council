@@ -116,7 +116,7 @@ describe('describeReviewResult', () => {
   it('prints the council report and names failed reviewers on stderr', () => {
     expect(describeReviewResult({ kind: 'reported', report: '# Review', reviewerReports: reports })).toEqual({
       stdout: '# Review',
-      stderr: 'Some reviewers failed:\nReviewer 2 · Claude Code · Haiku 5.5 · low · code: Timed out after 10 min',
+      stderr: 'Some reviewers failed:\nReviewer 2 · Claude · Haiku 5.5 · low · code: Timed out after 10 min',
       exitCode: 0,
     })
   })
@@ -126,7 +126,7 @@ describe('describeReviewResult', () => {
 
     expect(output.exitCode).toBe(1)
     expect(output.stdout).toContain('# Review without council verification')
-    expect(output.stdout).toContain('## Reviewer 1 · Claude Code · Haiku 5.5 · low · code\n\n### Finding')
+    expect(output.stdout).toContain('## Reviewer 1 · Claude · Haiku 5.5 · low · code\n\n### Finding')
     expect(output.stderr).toBe('The council failed: auth expired')
   })
 

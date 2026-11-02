@@ -5,6 +5,8 @@ export type ProviderStatus = {
   version: string | null
   problem: string | null
   fix: string | null
+  // false when the CLI offers no login status command; the review then reports login errors
+  loginChecked: boolean
 }
 
 export type ProviderModel = {
@@ -23,6 +25,7 @@ export type ProviderAdapter = {
 }
 
 export const providerDisplayNames: Record<ProviderId, string> = {
+  copilot: 'Copilot',
   codex: 'Codex',
-  claude: 'Claude Code',
+  claude: 'Claude',
 }

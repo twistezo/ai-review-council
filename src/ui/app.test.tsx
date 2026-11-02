@@ -129,10 +129,10 @@ describe('App', () => {
     })
     // compact header, then one blank line before the step
     expect(app.frame()).toMatch(
-      /^ ai-review-council v9\.9\.9\n ✔ Git · ✔ Codex · ✔ Claude Code\n\n Report language • step 1 of 7\n/,
+      /^ ai-review-council v9\.9\.9\n ✔ Git · ✔ Codex · ✔ Claude\n\n Report language • step 1 of 7\n/,
     )
     expect(app.frame()).toContain('Report language')
-    expect(app.frame()).toContain('✔ Git · ✔ Codex · ✔ Claude Code')
+    expect(app.frame()).toContain('✔ Git · ✔ Codex · ✔ Claude')
 
     await app.press(...toCouncil)
     expect(app.frame()).toContain('Council agent')
@@ -245,6 +245,21 @@ describe('App', () => {
     expect(app.frame()).not.toContain('codex-large')
   })
 
+  it('offers Copilot to reviewers but not as the council agent', async () => {
+    const app = await startApp({
+      adapters: [fakeAdapter('codex'), fakeAdapter('copilot', { models: [{ id: 'auto', label: 'Auto', efforts: [] }] })],
+    })
+    await app.press(...toCouncil)
+    // the header lists every provider; the picker follows the step title
+    const picker = (title: string): string => app.frame().slice(app.frame().indexOf(title))
+    expect(picker('Council agent')).toContain('Codex')
+    expect(picker('Council agent')).not.toContain('Copilot')
+
+    // council, then one reviewer
+    await app.press(keys.enter, keys.enter)
+    expect(picker('Reviewer 1 of 1')).toContain('Copilot')
+  })
+
   it('skips the language and folder steps given as options', async () => {
     const app = await startApp({}, { language: 'pl', directory: tmpdir(), scope: null, reviewerCount: null })
 
@@ -312,7 +327,7 @@ describe('App', () => {
     const app = await startApp({
       adapters: [fakeAdapter('codex', { status: { problem: 'Not logged in.' } }), fakeAdapter('claude')],
     })
-    expect(app.frame()).toContain('– Codex (Not logged in.) · ✔ Claude Code')
+    expect(app.frame()).toContain('– Codex (Not logged in.) · ✔ Claude')
     await app.press(...toCouncil)
 
     expect(app.frame()).toContain('claude-large')
@@ -328,7 +343,7 @@ describe('App', () => {
     })
     await app.waitForText('Requirements not met')
 
-    expect(app.frame()).toContain('At least one of Codex or Claude Code must be installed and logged in.')
+    expect(app.frame()).toContain('At least one of Codex or Claude must be installed and logged in.')
     await app.press(keys.enter)
     expect(app.outcomes).toEqual([{ kind: 'blocked' }])
   })

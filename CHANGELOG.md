@@ -2,6 +2,19 @@
 
 All notable changes to this project. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## 2.1.0 - 2026-11-02
+
+### Added
+
+- Copilot reviewers with automatic model selection and default effort, including Copilot Free. The app prefers `copilot` on `PATH` and falls back to `gh copilot` when absent. Codex or Claude remains required as the council agent.
+- Copilot token totals after review, read from a temporary usage report and removed with the review workspace.
+
+### Changed
+
+- Shorter provider names in the terminal: Codex, Claude and Copilot.
+- README lists supported roles, CLI model catalogs and effort options; demo uses a Copilot reviewer.
+- Preflight distinguishes CLI availability from verified login; Copilot login errors are reported when review starts.
+
 ## 2.0.2 - 2026-11-01
 
 ### Added

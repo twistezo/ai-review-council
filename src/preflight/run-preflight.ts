@@ -1,3 +1,4 @@
+import { isCouncilProvider } from '../domain/review-session.js'
 import type { GitRepository } from '../git/git-repository.js'
 import type { CatalogModel } from '../providers/model-catalog.js'
 import { toCatalogModels } from '../providers/model-catalog.js'
@@ -74,8 +75,15 @@ const checkProvider = async (adapter: ProviderAdapter): Promise<ProviderCheck> =
       return unavailable('The CLI returned no models.', 'Check your plan and CLI configuration.')
     }
 
+    const loginNote = status.loginChecked ? '' : '; login checked when the review starts'
+
     return {
-      check: { label: adapter.displayName, state: 'ok', detail: `${status.version ?? ''}, ${models.length} models`, fix: null },
+      check: {
+        label: adapter.displayName,
+        state: 'ok',
+        detail: `${status.version ?? ''}, ${models.length} models${loginNote}`,
+        fix: null,
+      },
       models,
     }
   } catch (error) {
@@ -97,7 +105,9 @@ export const runPreflight = async ({
   const blockers = [
     gitCheck.state === 'failed' ? 'Git is required.' : null,
     instructionsCheck.state === 'failed' ? 'Instruction files are missing.' : null,
-    models.length === 0 ? 'At least one of Codex or Claude Code must be installed and logged in.' : null,
+    models.some((model) => isCouncilProvider(model.provider))
+      ? null
+      : 'At least one of Codex or Claude must be installed and logged in.',
   ].filter((blocker) => blocker !== null)
 
   return {

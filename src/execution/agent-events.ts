@@ -164,3 +164,77 @@ export const parseCodexLine: ParseAgentLine = (line) => {
       return [{ kind: 'error', message: `Codex error: ${event.message}` }]
   }
 }
+
+const copilotEventSchema = z.object({
+  type: z.string(),
+  sessionId: z.string().optional(),
+  exitCode: z.number().optional(),
+  data: z
+    .object({
+      content: z.string().optional(),
+      phase: z.string().optional(),
+      toolName: z.string().optional(),
+      parentToolCallId: z.string().optional(),
+      arguments: z.record(z.string(), z.unknown()).optional(),
+    })
+    .optional(),
+})
+
+// The report is the `final_answer` message; deltas, reasoning and messages between tool calls are not.
+// Only the CLI `result` ends a run: `turn_end` and `idle` also come between tool calls.
+// No token total was seen in the CLI output, so usage stays unknown.
+export const parseCopilotLine: ParseAgentLine = (line) => {
+  const parsed = copilotEventSchema.safeParse(parseJson(line))
+  if (!parsed.success || parsed.data.data?.parentToolCallId !== undefined) {
+    return []
+  }
+  const { type, sessionId, exitCode, data } = parsed.data
+  switch (type) {
+    case 'assistant.message':
+      return data?.phase === 'final_answer' && data.content?.trim() ? [{ kind: 'message', text: data.content }] : []
+    case 'tool.execution_start':
+      return [{ kind: 'read', target: `${data?.toolName ?? ''} ${describeToolInput(data?.arguments ?? {})}`.trim() }]
+    case 'result':
+      return [
+        ...(sessionId === undefined ? [] : [{ kind: 'session', sessionId } as const]),
+        exitCode === 0
+          ? { kind: 'completed', text: null }
+          : {
+              kind: 'error',
+              message: `Copilot exited with code ${exitCode ?? 'unknown'}. Check Copilot login and usage limits.`,
+            },
+      ]
+    default:
+      return []
+  }
+}
+
+const copilotUsageSchema = z.object({
+  tokenDetails: z.object({
+    input: z.object({ tokenCount: z.number().nonnegative() }),
+    output: z.object({ tokenCount: z.number().nonnegative() }),
+    cache_read: z.object({ tokenCount: z.number().nonnegative() }).optional(),
+    cache_write: z.object({ tokenCount: z.number().nonnegative() }).optional(),
+  }),
+})
+
+// The session total already includes all model calls; do not add per-model totals again.
+export const parseCopilotUsage: ParseAgentLine = (text) => {
+  const parsed = copilotUsageSchema.safeParse(parseJson(text))
+  if (!parsed.success) {
+    return []
+  }
+  const details = parsed.data.tokenDetails
+
+  return [
+    {
+      kind: 'usage',
+      tokens: sumTokens([
+        details.input.tokenCount,
+        details.output.tokenCount,
+        details.cache_read?.tokenCount,
+        details.cache_write?.tokenCount,
+      ]),
+    },
+  ]
+}

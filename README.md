@@ -4,12 +4,22 @@ Runs independent AI reviewers on a code change.
 
 A council agent verifies their findings and writes one Markdown report, previewed in the terminal, ready to copy or open.
 
-Similar tools usually bill per token through provider APIs. This one runs locally on your logged-in AI coding agents, within your subscriptions' 5-hour and weekly limits.
+Similar tools usually bill per token through provider APIs. This one runs locally on **your logged-in AI coding agents**.
 
 Docs:
 
 - [CHANGELOG.md](CHANGELOG.md)
 - [ARCHITECTURE.md](ARCHITECTURE.md)
+
+## Supported agents
+
+| Agent   | CLI                      | Reviewer | Council | Models | Effort  | Plan                                |
+| ------- | ------------------------ | :------: | :-----: | ------ | ------- | ----------------------------------- |
+| Codex   | `codex`                  |    ✓     |    ✓    | All    | All     | Codex CLI access                    |
+| Claude  | `claude`                 |    ✓     |    ✓    | All    | All     | Claude Code access                  |
+| Copilot | `copilot` / `gh copilot` |    ✓     |    —    | Auto   | Default | Copilot CLI access (Free supported) |
+
+CLIs must be available on `PATH` and logged in. Usage and availability depend on your plan and organization settings.
 
 ## Demo
 
@@ -19,8 +29,7 @@ Docs:
 
 - macOS
 - Node.js
-- `git`
-- `codex` and/or `claude` on `PATH`, logged in
+- git
 
 ## Run
 

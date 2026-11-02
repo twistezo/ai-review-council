@@ -9,7 +9,7 @@ import type {
   ReviewScope,
   ReviewSessionDraft,
 } from '../domain/review-session.js'
-import { reviewSessionDraftSchema } from '../domain/review-session.js'
+import { isCouncilProvider, reviewSessionDraftSchema } from '../domain/review-session.js'
 import type { ReadClipboard } from '../clipboard/read-clipboard.js'
 import type { WriteClipboard } from '../clipboard/write-clipboard.js'
 import type { GitRepository, RepositoryState } from '../git/git-repository.js'
@@ -223,7 +223,7 @@ export const App = ({ title, services, presets, timeoutMinutes, onFinish }: AppP
       case 'council':
         return (
           <CouncilStep
-            models={state.models}
+            models={state.models.filter((model) => isCouncilProvider(model.provider))}
             value={state.council}
             onSubmit={(council) => complete({ council })}
             onBack={back}

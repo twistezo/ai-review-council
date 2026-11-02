@@ -1,8 +1,14 @@
 import { z } from 'zod'
 
-const providerIds = ['codex', 'claude'] as const
+const providerIds = ['codex', 'claude', 'copilot'] as const
 const providerIdSchema = z.enum(providerIds)
 export type ProviderId = z.infer<typeof providerIdSchema>
+
+const councilProviderIds: readonly ProviderId[] = ['codex', 'claude']
+export const isCouncilProvider = (provider: ProviderId): boolean => councilProviderIds.includes(provider)
+
+// Copilot offers only automatic model routing, which takes no effort argument.
+export const copilotModelId = 'auto'
 
 export const reportLanguages = ['en', 'pl'] as const
 export const reportLanguageSchema = z.enum(reportLanguages)
@@ -17,13 +23,20 @@ export const reviewTypes = ['code', 'security', 'ui-ux'] as const
 const reviewTypeSchema = z.enum(reviewTypes)
 export type ReviewType = z.infer<typeof reviewTypeSchema>
 
-const agentConfigurationSchema = z.object({
-  provider: providerIdSchema,
-  model: z.string().min(1),
-  modelLabel: z.string().min(1),
-  // null when the provider declares no effort levels for the model
-  effort: z.string().min(1).nullable(),
-})
+const agentConfigurationSchema = z
+  .object({
+    provider: providerIdSchema,
+    model: z.string().min(1),
+    modelLabel: z.string().min(1),
+    // null when the provider declares no effort levels for the model
+    effort: z.string().min(1).nullable(),
+  })
+  .refine(
+    (configuration) =>
+      configuration.provider !== 'copilot' ||
+      (configuration.model === copilotModelId && configuration.effort === null),
+    { message: 'Copilot supports only Auto without reasoning effort.' },
+  )
 export type AgentConfiguration = z.infer<typeof agentConfigurationSchema>
 
 export const maxReviewers = 8
@@ -78,7 +91,9 @@ export const reviewSessionDraftSchema = z.object({
   language: reportLanguageSchema,
   repository: repositorySummarySchema,
   scope: reviewScopeSchema,
-  council: agentConfigurationSchema,
+  council: agentConfigurationSchema.refine((configuration) => isCouncilProvider(configuration.provider), {
+    message: 'The council agent must be Codex or Claude.',
+  }),
   reviewers: z.array(reviewerAssignmentSchema).min(1).max(maxReviewers),
   // empty: review the code alone
   prompt: z.string().trim(),

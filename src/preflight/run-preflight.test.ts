@@ -54,8 +54,44 @@ describe('runPreflight', () => {
       }),
     )
 
-    expect(result.blocker).toBe('At least one of Codex or Claude Code must be installed and logged in.')
+    expect(result.blocker).toBe('At least one of Codex or Claude must be installed and logged in.')
     expect(result.checks[2]?.detail).toBe('Could not read the model catalog: timeout')
+  })
+
+  it('blocks when only Copilot is available, since it cannot be the council agent', async () => {
+    const result = await runPreflight(
+      dependencies({
+        adapters: [
+          fakeAdapter('codex', { status: { problem: '`codex` was not found in PATH.' } }),
+          fakeAdapter('copilot', { models: [{ id: 'auto', label: 'Auto', efforts: [] }] }),
+        ],
+      }),
+    )
+
+    expect(result.models.map((model) => model.provider)).toEqual(['copilot'])
+    expect(result.blocker).toBe('At least one of Codex or Claude must be installed and logged in.')
+  })
+
+  it('keeps Copilot usable as a reviewer next to a council provider and notes the unchecked login', async () => {
+    const result = await runPreflight(
+      dependencies({
+        adapters: [
+          fakeAdapter('codex'),
+          fakeAdapter('copilot', {
+            status: { loginChecked: false },
+            models: [{ id: 'auto', label: 'Auto', efforts: [] }],
+          }),
+        ],
+      }),
+    )
+
+    expect(result.blocker).toBeNull()
+    expect(result.checks[2]).toEqual({
+      label: 'Copilot',
+      state: 'ok',
+      detail: '1.0.0, 1 models; login checked when the review starts',
+      fix: null,
+    })
   })
 
   it('blocks when Git is missing, even with providers available', async () => {
