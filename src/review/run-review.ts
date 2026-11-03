@@ -51,27 +51,49 @@ export const numberReviewers = (
     )
     .map((reviewer, index) => ({ ...reviewer, number: index + 1 }))
 
-const isFence = (line: string): boolean => {
+// A fence is a run of at least three backticks or tildes; any text after it is the info string.
+const readFence = (line: string): string | null => {
   const trimmed = line.trimStart()
+  const character = trimmed[0]
+  if (character !== "`" && character !== "~") {
+    return null
+  }
+  const runEnd = [...trimmed].findIndex(next => next !== character)
+  const fence = runEnd === -1 ? trimmed : trimmed.slice(0, runEnd)
 
-  return trimmed.startsWith("```") || trimmed.startsWith("~~~")
+  return fence.length >= 3 ? fence : null
+}
+
+// Only a bare fence of the same character, at least as long as the opening one, closes a block.
+const closesFence = (line: string, openingFence: string): boolean => {
+  const fence = readFence(line)
+
+  return (
+    fence !== null &&
+    fence[0] === openingFence[0] &&
+    fence.length >= openingFence.length &&
+    line.trim() === fence
+  )
 }
 
 // Lines outside fenced code blocks; a `#` in a code sample is not a heading.
 export const proseLines = (text: string): { line: string; index: number }[] => {
-  let isInCodeBlock = false
+  let openingFence: string | null = null
 
   return text
     .split("\n")
     .map((line, index) => ({ line, index }))
     .filter(({ line }) => {
-      if (isFence(line)) {
-        isInCodeBlock = !isInCodeBlock
+      if (openingFence === null) {
+        openingFence = readFence(line)
 
-        return false
+        return openingFence === null
+      }
+      if (closesFence(line, openingFence)) {
+        openingFence = null
       }
 
-      return !isInCodeBlock
+      return false
     })
 }
 

@@ -114,7 +114,7 @@ export const ReviewersStep = ({
   return (
     <StepFrame
       title={isAtLimit ? "Reviewers" : `Reviewer ${accepted.length + 1}`}
-      hints="↑↓ row · ←→ column · Enter next · Ctrl+D confirm"
+      hints={`↑↓ row · ←→ column · Enter next${accepted.length > 0 ? " · Ctrl+D confirm" : ""}`}
       onBack={() => {
         const last = accepted.at(-1)
         if (last === undefined) {

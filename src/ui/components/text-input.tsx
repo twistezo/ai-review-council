@@ -2,6 +2,7 @@ import { Text, useInput, usePaste } from "ink"
 import type { Dispatch, JSX, SetStateAction } from "react"
 
 import { theme } from "../theme.js"
+import { CursorLine, useTextCursor } from "./text-cursor.js"
 
 type TextInputProps = {
   value: string
@@ -14,16 +15,9 @@ type TextInputProps = {
 
 const isControlKey = (
   key: Parameters<Parameters<typeof useInput>[0]>[1],
-): boolean =>
-  key.ctrl ||
-  key.meta ||
-  key.escape ||
-  key.upArrow ||
-  key.downArrow ||
-  key.leftArrow ||
-  key.rightArrow
+): boolean => key.ctrl || key.meta || key.escape || key.upArrow || key.downArrow
 
-// Single-line input; the cursor always stays at the end.
+// Single-line input; ←→ move the cursor, and Tab completion leaves it at the end.
 export const TextInput = ({
   value,
   onChange,
@@ -32,6 +26,8 @@ export const TextInput = ({
   placeholder = "",
   isActive = true,
 }: TextInputProps): JSX.Element => {
+  const cursor = useTextCursor(value, onChange)
+
   useInput(
     (input, key) => {
       if (key.return) {
@@ -40,34 +36,37 @@ export const TextInput = ({
         return
       }
       if (key.tab) {
+        cursor.moveToEnd()
         onTab?.()
 
         return
       }
-      if (key.backspace || key.delete) {
-        onChange(previous => previous.slice(0, -1))
-
+      if (cursor.handleEditingKey(key)) {
         return
       }
       if (!isControlKey(key) && input !== "") {
-        onChange(previous => previous + input)
+        cursor.insert(input)
       }
     },
     { isActive },
   )
   usePaste(
     text => {
-      onChange(
-        previous => previous + text.replaceAll("\r", "").replaceAll("\n", " "),
-      )
+      cursor.insert(text.replaceAll("\r", "").replaceAll("\n", " "))
     },
     { isActive },
   )
 
+  if (value === "") {
+    return (
+      <Text>
+        <Text dimColor>{placeholder}</Text>
+        {isActive && <Text backgroundColor={theme.cursor}> </Text>}
+      </Text>
+    )
+  }
+
   return (
-    <Text>
-      {value === "" ? <Text dimColor>{placeholder}</Text> : value}
-      {isActive && <Text backgroundColor={theme.cursor}> </Text>}
-    </Text>
+    <CursorLine text={value} column={isActive ? cursor.cursorIndex : null} />
   )
 }

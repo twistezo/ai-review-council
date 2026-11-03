@@ -5,9 +5,9 @@ import { fileURLToPath } from "node:url"
 import type { ReviewType } from "../domain/review-session.js"
 import { reviewTypes } from "../domain/review-session.js"
 
-// `docs/` sits next to `src/` and `dist/`, so the same relative path works for both.
+// `instructions/` sits next to `src/` and `dist/`, so the same relative path works for both.
 export const instructionsDirectory = fileURLToPath(
-  new URL("../../docs/", import.meta.url),
+  new URL("../../instructions/", import.meta.url),
 )
 
 const reviewTypeFile = (reviewType: ReviewType): string =>

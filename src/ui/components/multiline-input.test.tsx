@@ -3,23 +3,14 @@ import { useState } from "react"
 import type { JSX } from "react"
 import { describe, expect, it } from "vitest"
 
+import {
+  terminalKeys,
+  typeKeys,
+  waitUntil,
+} from "../../test-support/terminal-input.js"
 import { MultilineInput } from "./multiline-input.js"
 
-const delay = (ms: number): Promise<void> =>
-  new Promise(resolve => setTimeout(resolve, ms))
-
-const waitUntil = async (
-  description: string,
-  isReady: () => boolean,
-): Promise<void> => {
-  const deadline = Date.now() + 2_000
-  while (!isReady()) {
-    if (Date.now() > deadline) {
-      throw new Error(`Timed out waiting for ${description}`)
-    }
-    await delay(5)
-  }
-}
+const { left, right, backspace, forwardDelete } = terminalKeys
 
 type HarnessProps = {
   onSubmit: (value: string) => void
@@ -45,25 +36,14 @@ const submitTyped = async (
   readClipboard: () => Promise<string | null> = async () => null,
 ): Promise<string[]> => {
   const submitted: string[] = []
-  const { stdin, lastFrame } = render(
+  const rendered = render(
     <Harness
       onSubmit={value => submitted.push(value)}
       readClipboard={readClipboard}
     />,
   )
-  await waitUntil(
-    "the input to listen",
-    () => stdin.listenerCount("readable") > 0,
-  )
-  for (const key of keys) {
-    const previous = lastFrame()
-    stdin.write(key)
-    await waitUntil(
-      `the frame after ${JSON.stringify(key)}`,
-      () => lastFrame() !== previous,
-    )
-  }
-  stdin.write("\x04")
+  await typeKeys(rendered, keys)
+  rendered.stdin.write("\x04")
   await waitUntil("the submit", () => submitted.length > 0)
 
   return submitted
@@ -81,15 +61,62 @@ describe("MultilineInput", () => {
   })
 
   it("removes the last character with Backspace, across a line break too", async () => {
-    expect(await submitTyped(["one", "\r", "\x7f", "\x7f", "X"])).toEqual([
-      "onX",
-    ])
+    expect(await submitTyped(["one", "\r", backspace, backspace, "X"])).toEqual(
+      ["onX"],
+    )
   })
 
   it("pastes the clipboard with Ctrl+V, turning Windows line endings into new lines", async () => {
     expect(
       await submitTyped(["A: ", "\x16"], async () => "one\r\ntwo\rthree"),
     ).toEqual(["A: one\ntwo\nthree"])
+  })
+
+  it("fixes a typo in the middle without retyping the rest", async () => {
+    expect(
+      await submitTyped(["Totl VAT", left, left, left, left, left, "a"]),
+    ).toEqual(["Total VAT"])
+  })
+
+  it("removes the character before the cursor with Backspace", async () => {
+    expect(await submitTyped(["abXc", left, backspace])).toEqual(["abc"])
+  })
+
+  it("moves the cursor across a line break", async () => {
+    expect(
+      await submitTyped(["one", "\r", "two", left, left, left, left, "!"]),
+    ).toEqual(["one!\ntwo"])
+  })
+
+  it("moves back to the end with the right arrow", async () => {
+    expect(await submitTyped(["ab", left, left, right, right, "c"])).toEqual([
+      "abc",
+    ])
+  })
+
+  it("pastes at the cursor", async () => {
+    expect(await submitTyped(["ac", left, "\u001b[200~b\u001b[201~"])).toEqual([
+      "abc",
+    ])
+  })
+
+  it("removes the character after the cursor with forward Delete", async () => {
+    expect(await submitTyped(["abXc", left, left, forwardDelete])).toEqual([
+      "abc",
+    ])
+  })
+
+  it("moves over and removes an emoji as one character", async () => {
+    expect(await submitTyped(["a😀b", left, left, "X"])).toEqual(["aX😀b"])
+    expect(await submitTyped(["a😀b", left, backspace])).toEqual(["ab"])
+    expect(await submitTyped(["a👍🏽b", left, left, forwardDelete])).toEqual([
+      "ab",
+    ])
+  })
+
+  it("applies keys from one input chunk in order", async () => {
+    expect(await submitTyped(["xy", `a${left}b`])).toEqual(["xyba"])
+    expect(await submitTyped([`a${left}b`])).toEqual(["ba"])
   })
 
   it("takes a terminal paste with its line breaks", async () => {

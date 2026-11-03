@@ -123,6 +123,44 @@ describe("proseLines", () => {
     ])
   })
 
+  it("keeps a shorter or different fence inside a code block as code", () => {
+    const text = [
+      "# Review",
+      "````md",
+      "```ts",
+      "### Example inside a longer fence",
+      "```",
+      "````",
+      "### One",
+      "~~~",
+      "```",
+      "### Example inside a tilde fence",
+      "~~~",
+      "### Two",
+    ].join("\n")
+
+    expect(proseLines(text).map(({ line }) => line)).toEqual([
+      "# Review",
+      "### One",
+      "### Two",
+    ])
+  })
+
+  it("closes a block only on a bare fence, not on one with an info string", () => {
+    expect(
+      proseLines("```\n```ts\n### Inside\n```\n### Outside").map(
+        ({ line }) => line,
+      ),
+    ).toEqual(["### Outside"])
+  })
+
+  it("treats two backticks as prose, not a fence", () => {
+    expect(proseLines("``\n### One").map(({ line }) => line)).toEqual([
+      "``",
+      "### One",
+    ])
+  })
+
   it("treats everything after an unclosed fence as code", () => {
     expect(
       proseLines("# Review\n```\n### Inside").map(({ line }) => line),

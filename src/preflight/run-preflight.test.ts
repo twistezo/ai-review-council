@@ -158,7 +158,7 @@ describe("runPreflight", () => {
       "Git is required. Instruction files are missing. At least one of Codex or Claude must be available.",
     )
     expect(checkLabelled(result, "Instructions")?.detail).toBe(
-      "Missing: docs/common.md, docs/reviewer/reviewer.md",
+      "Missing: instructions/common.md, instructions/reviewer/reviewer.md",
     )
   })
 
@@ -242,7 +242,7 @@ describe("runPreflight", () => {
     expect(checkLabelled(result, "Instructions")).toEqual({
       label: "Instructions",
       state: "failed",
-      detail: "Missing: docs/council/council.md",
+      detail: "Missing: instructions/council/council.md",
       fix: "Reinstall the app or restore the missing files.",
     })
   })

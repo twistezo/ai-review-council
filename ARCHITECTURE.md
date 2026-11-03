@@ -2,12 +2,12 @@
 
 ## Repository layout
 
-| Path                    | Holds                                   |
-| ----------------------- | --------------------------------------- |
-| [`src/`](src)           | App source and tests                    |
-| [`docs/`](docs)         | Agent instructions shipped with the app |
-| [`demo/`](demo)         | Demo recording and its review target    |
-| [`dev-docs/`](dev-docs) | Documentation for developing this repo  |
+| Path                            | Holds                                   |
+| ------------------------------- | --------------------------------------- |
+| [`src/`](src)                   | App source and tests                    |
+| [`instructions/`](instructions) | Agent instructions shipped with the app |
+| [`demo/`](demo)                 | Demo recording and its review target    |
+| [`docs/`](docs)                 | Documentation for developing this repo  |
 
 ## Flow
 
@@ -64,9 +64,9 @@ Agents run unattended with read-only access and restricted tools. Provider-speci
 
 ## Review instructions
 
-All agents receive [`docs/common.md`](docs/common.md), their role and review type (`code`, `security`, `ui-ux`):
+All agents receive [`instructions/common.md`](instructions/common.md), their role and review type (`code`, `security`, `ui-ux`):
 
-| Role                     | Instructions                                                                             |
-| ------------------------ | ---------------------------------------------------------------------------------------- |
-| Reviewer: find issues    | [`reviewer.md`](docs/reviewer/reviewer.md) + `docs/reviewer/<type>-review.md`            |
-| Council: verify findings | [`council.md`](docs/council/council.md) + selected `docs/council/<type>-review.md` files |
+| Role                     | Instructions                                                                                             |
+| ------------------------ | -------------------------------------------------------------------------------------------------------- |
+| Reviewer: find issues    | [`reviewer.md`](instructions/reviewer/reviewer.md) + `instructions/reviewer/<type>-review.md`            |
+| Council: verify findings | [`council.md`](instructions/council/council.md) + selected `instructions/council/<type>-review.md` files |

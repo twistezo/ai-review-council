@@ -584,6 +584,22 @@ describe.concurrent("App project step", () => {
     expect(app.frame()).not.toContain("alpha-two/")
   })
 
+  it("hides the listed folders once the path changes", async () => {
+    const app = await startApp({ cwd: projectsDirectory })
+    await app.press(keys.enter)
+    await app.waitForStep("Project folder")
+
+    await app.press("/al", keys.tab)
+    await app.waitForText("alpha-two/")
+
+    await app.press("x")
+    await app.waitFor(
+      "the folder list to disappear",
+      () => !app.frame().includes("alpha-two/"),
+    )
+    expect(app.frame()).toContain(`${projectsDirectory}/alpha-x`)
+  })
+
   it("stays where Esc led when the repository check finishes after the user left", async () => {
     let finishCheck = (): void => undefined
     const git = fakeGitRepository({
@@ -776,15 +792,20 @@ describe.concurrent("App scope step", () => {
 })
 
 describe.concurrent("App reviewers step", () => {
-  it("shows the reviewer hints", async () => {
+  it("shows the reviewer hints, with Ctrl+D only once a reviewer is accepted", async () => {
     const app = await startAtCouncil()
     await app.press(keys.enter)
     await app.waitForStep("Reviewer 1")
 
+    expect(app.frame()).toContain("↑↓ row · ←→ column · Enter next · Esc back")
+    expect(app.frame()).not.toContain("Ctrl+D")
+    expect(app.frame()).not.toContain("How many reviewers")
+
+    await app.press(keys.enter)
+    await app.waitForStep("Reviewer 2")
     expect(app.frame()).toContain(
       "↑↓ row · ←→ column · Enter next · Ctrl+D confirm · Esc back",
     )
-    expect(app.frame()).not.toContain("How many reviewers")
   })
 
   it("confirms only the reviewers accepted with Enter", async () => {

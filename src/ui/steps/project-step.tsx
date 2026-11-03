@@ -129,6 +129,7 @@ export const ProjectStep = ({
         onChange={update => {
           setValue(update)
           setError(null)
+          setCandidates([])
         }}
         onSubmit={() => void submit(value)}
         onTab={() => void complete()}

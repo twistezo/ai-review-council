@@ -2,6 +2,27 @@
 
 All notable changes to this project. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## 3.2.0 - 2026-11-03
+
+### Added
+
+- `←` and `→` move the cursor in the folder, commit and prompt fields by whole characters, emoji included; typing, Backspace and paste work at the cursor, and forward Delete removes the character after it.
+
+### Changed
+
+- Agent instructions moved from `docs/` to `instructions/`; notes for developing this repo moved from `dev-docs/` to `docs/`.
+- Code reviewers check three axes, behaviour, standards and spec, and tag each finding with its axis. Standards findings cite the repository rule; spec findings quote the requirement and include behaviour nobody asked for.
+- Each confirmed finding's heading names its area: the review type, or the axis for a code review (`### <severity> · <area> · <title>`).
+- Code reviewers list possible code smells in a separate `Smells` section, outside the finding count; the council keeps the confirmed ones there.
+- `Ctrl+D confirm` shows in the reviewer hints only once a reviewer is accepted.
+- Git runs without the repository's file-system monitor, and the diff for agents ignores external diff tools, text conversion and color settings.
+
+### Fixed
+
+- A review of a very large repository no longer fails on the OS argument limit: the diff is read in batches.
+- A code example inside a longer fence in a report no longer counts as a finding or hides the findings after it.
+- Folder suggestions disappear as soon as the path changes.
+
 ## 3.1.0 - 2026-11-03
 
 ### Added

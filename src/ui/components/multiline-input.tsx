@@ -2,6 +2,7 @@ import { Box, Text, useInput, usePaste } from "ink"
 import type { Dispatch, JSX, SetStateAction } from "react"
 
 import { theme } from "../theme.js"
+import { CursorLine, useTextCursor } from "./text-cursor.js"
 
 type MultilineInputProps = {
   value: string
@@ -15,7 +16,20 @@ type MultilineInputProps = {
 const normalizeNewlines = (text: string): string =>
   text.replaceAll("\r\n", "\n").replaceAll("\r", "\n")
 
+// Where each line starts in the whole value; every line break takes one character.
+const lineStarts = (lines: readonly string[]): number[] => {
+  const starts: number[] = []
+  let start = 0
+  for (const line of lines) {
+    starts.push(start)
+    start += line.length + 1
+  }
+
+  return starts
+}
+
 // Enter inserts a new line and Ctrl+D submits: most terminals send Shift+Enter exactly like Enter.
+// ←→ move the cursor, also across line breaks.
 export const MultilineInput = ({
   value,
   onChange,
@@ -23,8 +37,9 @@ export const MultilineInput = ({
   readClipboard,
   placeholder = "",
 }: MultilineInputProps): JSX.Element => {
-  const append = (text: string): void => {
-    onChange(previous => previous + normalizeNewlines(text))
+  const cursor = useTextCursor(value, onChange)
+  const insertText = (text: string): void => {
+    cursor.insert(normalizeNewlines(text))
   }
 
   useInput((input, key) => {
@@ -36,20 +51,18 @@ export const MultilineInput = ({
     if (key.ctrl && input === "v") {
       void readClipboard().then(text => {
         if (text !== null) {
-          append(text)
+          insertText(text)
         }
       })
 
       return
     }
     if (key.return) {
-      onChange(previous => `${previous}\n`)
+      cursor.insert("\n")
 
       return
     }
-    if (key.backspace || key.delete) {
-      onChange(previous => previous.slice(0, -1))
-
+    if (cursor.handleEditingKey(key)) {
       return
     }
     if (
@@ -58,18 +71,17 @@ export const MultilineInput = ({
       key.escape ||
       key.tab ||
       key.upArrow ||
-      key.downArrow
+      key.downArrow ||
+      input === ""
     ) {
       return
     }
-    if (key.leftArrow || key.rightArrow || input === "") {
-      return
-    }
-    onChange(previous => previous + input)
+    cursor.insert(input)
   })
-  usePaste(append)
+  usePaste(insertText)
 
   const lines = value.split("\n")
+  const starts = lineStarts(lines)
 
   return (
     <Box
@@ -84,14 +96,17 @@ export const MultilineInput = ({
           <Text backgroundColor={theme.cursor}> </Text>
         </Text>
       ) : (
-        lines.map((line, index) => (
-          <Text key={index}>
-            {line}
-            {index === lines.length - 1 && (
-              <Text backgroundColor={theme.cursor}> </Text>
-            )}
-          </Text>
-        ))
+        lines.map((line, index) => {
+          const column = cursor.cursorIndex - (starts[index] ?? 0)
+
+          return (
+            <CursorLine
+              key={index}
+              text={line}
+              column={column >= 0 && column <= line.length ? column : null}
+            />
+          )
+        })
       )}
     </Box>
   )

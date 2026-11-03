@@ -75,12 +75,14 @@ describe("createGitRepository", () => {
   it("combines tracked changes with untracked files, without duplicates", async () => {
     const git = createGitRepository(
       fakeRunCommand({
-        [`git diff --name-status -z --find-renames ${base} --`]: commandResult({
-          stdout: "M\0src/b.ts\0",
-        }),
-        "git ls-files --others --exclude-standard -z": commandResult({
-          stdout: "src/a.ts\0src/b.ts\0",
-        }),
+        [`git -c core.fsmonitor=false diff --name-status -z --find-renames ${base} --`]:
+          commandResult({
+            stdout: "M\0src/b.ts\0",
+          }),
+        "git -c core.fsmonitor=false ls-files --others --exclude-standard -z":
+          commandResult({
+            stdout: "src/a.ts\0src/b.ts\0",
+          }),
       }),
     )
 
@@ -101,12 +103,14 @@ describe("createGitRepository", () => {
   it("reports detached HEAD as no branch", async () => {
     const git = createGitRepository(
       fakeRunCommand({
-        "git symbolic-ref --quiet --short HEAD": commandResult({ exitCode: 1 }),
-        "git log -1 --format=%H%x00%s --end-of-options HEAD^{commit}":
+        "git -c core.fsmonitor=false symbolic-ref --quiet --short HEAD":
+          commandResult({ exitCode: 1 }),
+        "git -c core.fsmonitor=false log -1 --format=%H%x00%s --end-of-options HEAD^{commit}":
           commandResult({ stdout: `${base}\0Fix bug\n` }),
-        "git status --porcelain=v1 -z --untracked-files=normal": commandResult({
-          stdout: "",
-        }),
+        "git -c core.fsmonitor=false status --porcelain=v1 -z --untracked-files=normal":
+          commandResult({
+            stdout: "",
+          }),
       }),
     )
 
@@ -121,14 +125,16 @@ describe("createGitRepository", () => {
   it("reports changes and the current branch", async () => {
     const git = createGitRepository(
       fakeRunCommand({
-        "git symbolic-ref --quiet --short HEAD": commandResult({
-          stdout: "feature/cart\n",
-        }),
-        "git log -1 --format=%H%x00%s --end-of-options HEAD^{commit}":
+        "git -c core.fsmonitor=false symbolic-ref --quiet --short HEAD":
+          commandResult({
+            stdout: "feature/cart\n",
+          }),
+        "git -c core.fsmonitor=false log -1 --format=%H%x00%s --end-of-options HEAD^{commit}":
           commandResult({ stdout: `${base}\0Fix bug\n` }),
-        "git status --porcelain=v1 -z --untracked-files=normal": commandResult({
-          stdout: " M src/a.ts\0",
-        }),
+        "git -c core.fsmonitor=false status --porcelain=v1 -z --untracked-files=normal":
+          commandResult({
+            stdout: " M src/a.ts\0",
+          }),
       }),
     )
 
@@ -141,12 +147,14 @@ describe("createGitRepository", () => {
   it("reports no HEAD commit in a repository without commits", async () => {
     const git = createGitRepository(
       fakeRunCommand({
-        "git symbolic-ref --quiet --short HEAD": commandResult({
-          stdout: "main\n",
-        }),
-        "git status --porcelain=v1 -z --untracked-files=normal": commandResult({
-          stdout: "?? a.ts\0",
-        }),
+        "git -c core.fsmonitor=false symbolic-ref --quiet --short HEAD":
+          commandResult({
+            stdout: "main\n",
+          }),
+        "git -c core.fsmonitor=false status --porcelain=v1 -z --untracked-files=normal":
+          commandResult({
+            stdout: "?? a.ts\0",
+          }),
       }),
     )
 
@@ -161,15 +169,17 @@ describe("createGitRepository", () => {
   it("fails instead of reporting a clean tree when git status cannot run", async () => {
     const git = createGitRepository(
       fakeRunCommand({
-        "git symbolic-ref --quiet --short HEAD": commandResult({
-          stdout: "main\n",
-        }),
-        "git log -1 --format=%H%x00%s --end-of-options HEAD^{commit}":
+        "git -c core.fsmonitor=false symbolic-ref --quiet --short HEAD":
+          commandResult({
+            stdout: "main\n",
+          }),
+        "git -c core.fsmonitor=false log -1 --format=%H%x00%s --end-of-options HEAD^{commit}":
           commandResult({ stdout: `${base}\0Fix bug\n` }),
-        "git status --porcelain=v1 -z --untracked-files=normal": commandResult({
-          exitCode: 128,
-          stderr: "index.lock",
-        }),
+        "git -c core.fsmonitor=false status --porcelain=v1 -z --untracked-files=normal":
+          commandResult({
+            exitCode: 128,
+            stderr: "index.lock",
+          }),
       }),
     )
 
@@ -181,7 +191,9 @@ describe("createGitRepository", () => {
   it("reads the repository root and the Git version, or nothing when Git fails", async () => {
     const git = createGitRepository(
       fakeRunCommand({
-        "git rev-parse --show-toplevel": commandResult({ stdout: "/repo\n" }),
+        "git -c core.fsmonitor=false rev-parse --show-toplevel": commandResult({
+          stdout: "/repo\n",
+        }),
         "git --version": commandResult({ stdout: "git version 2.50.0\n" }),
       }),
     )
@@ -196,7 +208,7 @@ describe("createGitRepository", () => {
   it("passes a user ref after the end of options so it cannot act as a flag", async () => {
     const git = createGitRepository(
       fakeRunCommand({
-        "git log -1 --format=%H%x00%s --end-of-options abcd^{commit}":
+        "git -c core.fsmonitor=false log -1 --format=%H%x00%s --end-of-options abcd^{commit}":
           commandResult({ stdout: `${base}\0Fix bug\n` }),
       }),
     )
@@ -210,7 +222,7 @@ describe("createGitRepository", () => {
   it("returns no commit when Git prints something other than a full hash", async () => {
     const git = createGitRepository(
       fakeRunCommand({
-        "git log -1 --format=%H%x00%s --end-of-options abcd^{commit}":
+        "git -c core.fsmonitor=false log -1 --format=%H%x00%s --end-of-options abcd^{commit}":
           commandResult({ stdout: "abcd\0Fix bug\n" }),
       }),
     )
@@ -221,7 +233,7 @@ describe("createGitRepository", () => {
   it("reads the diff of the given paths only, and nothing for no paths", async () => {
     const git = createGitRepository(
       fakeRunCommand({
-        [`git --literal-pathspecs diff --find-renames ${base} -- src/a.ts src/b.ts`]:
+        [`git -c core.fsmonitor=false --literal-pathspecs diff --no-ext-diff --no-textconv --no-color --find-renames ${base} -- src/a.ts src/b.ts`]:
           commandResult({ stdout: "diff --git a/src/a.ts\n" }),
       }),
     )
@@ -238,9 +250,10 @@ describe("createGitRepository", () => {
   it("tells whether a commit is in the history of HEAD", async () => {
     const git = createGitRepository(
       fakeRunCommand({
-        [`git merge-base --is-ancestor ${base} HEAD`]: commandResult({
-          exitCode: 0,
-        }),
+        [`git -c core.fsmonitor=false merge-base --is-ancestor ${base} HEAD`]:
+          commandResult({
+            exitCode: 0,
+          }),
       }),
     )
 
@@ -259,9 +272,10 @@ describe("createGitRepository", () => {
       "6ef19b41225c5369f1c104d45d8d85efa9b057b53b14b4b9b939dd74decc5321"
     const git = createGitRepository(
       fakeRunCommand({
-        "git hash-object -t tree /dev/null": commandResult({
-          stdout: `${sha256EmptyTree}\n`,
-        }),
+        "git -c core.fsmonitor=false hash-object -t tree /dev/null":
+          commandResult({
+            stdout: `${sha256EmptyTree}\n`,
+          }),
       }),
     )
 

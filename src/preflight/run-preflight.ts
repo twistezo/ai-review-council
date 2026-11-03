@@ -64,13 +64,13 @@ const checkInstructions = async (
     ? {
         label: "Instructions",
         state: "ok",
-        detail: "docs/council, docs/reviewer",
+        detail: "instructions/council, instructions/reviewer",
         fix: null,
       }
     : {
         label: "Instructions",
         state: "failed",
-        detail: `Missing: ${missing.map(file => `docs/${file}`).join(", ")}`,
+        detail: `Missing: ${missing.map(file => `instructions/${file}`).join(", ")}`,
         fix: "Reinstall the app or restore the missing files.",
       }
 }

@@ -59,8 +59,8 @@ npm run typecheck
 npm run build # dist/
 ```
 
-## Dev-Docs
+## Docs
 
-[`dev-docs/`](dev-docs) is the domain memory for agents and people. Written in the [Matt Pocock skills](https://github.com/mattpocock/skills) style:
+[`docs/`](docs) is the domain memory for agents and people. Written in the [Matt Pocock skills](https://github.com/mattpocock/skills) style:
 
-- [`dev-docs/GLOSSARY.md`](dev-docs/GLOSSARY.md): Generated and kept up to date with the `domain-modeling` skill.
+- [`docs/GLOSSARY.md`](docs/GLOSSARY.md): Generated and kept up to date with the `domain-modeling` skill.

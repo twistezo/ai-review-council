@@ -45,7 +45,11 @@ export const createGitRepository = (run: RunCommand): GitRepository => {
     args: readonly string[],
     timeoutMs?: number,
   ): Promise<string | null> => {
-    const result = await run("git", args, { cwd, timeoutMs })
+    // A file-system monitor from the reviewed repository's config is a program Git would run.
+    const result = await run("git", ["-c", "core.fsmonitor=false", ...args], {
+      cwd,
+      timeoutMs,
+    })
 
     return isSuccessful(result) ? result.stdout : null
   }
@@ -151,11 +155,15 @@ export const createGitRepository = (run: RunCommand): GitRepository => {
         return ""
       }
       // Paths are file names, not patterns: a file named `*` or `[id].tsx` must not pull in others.
+      // Agents get a plain patch, whatever external diff, text conversion or color the config sets.
       const output = await git(
         root,
         [
           "--literal-pathspecs",
           "diff",
+          "--no-ext-diff",
+          "--no-textconv",
+          "--no-color",
           "--find-renames",
           baseHash,
           "--",

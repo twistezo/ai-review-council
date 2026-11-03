@@ -3,7 +3,10 @@ import { tmpdir } from "node:os"
 import path from "node:path"
 import { describe, expect, it, vi } from "vitest"
 
-import type { ReviewSessionDraft } from "../domain/review-session.js"
+import type {
+  ChangedFile,
+  ReviewSessionDraft,
+} from "../domain/review-session.js"
 import {
   instructionsDirectory,
   readInstructions,
@@ -18,7 +21,7 @@ import { buildReviewerMessage } from "./review-messages.js"
 import { describeReviewResult } from "./review-output.js"
 import {
   createWorkspacePreparer,
-  trackedDiffPaths,
+  trackedDiffBatches,
 } from "./review-workspace.js"
 
 const session: ReviewSessionDraft = {
@@ -98,11 +101,99 @@ describe("buildReviewerMessage", () => {
 
 describe("review workspace", () => {
   it("diffs tracked files only, with both sides of a rename", () => {
-    expect(trackedDiffPaths(session.scope)).toEqual([
-      "src/cart.ts",
-      "src/cost.ts",
-      "src/price.ts",
+    expect(trackedDiffBatches(session.scope)).toEqual([
+      ["src/cart.ts", "src/cost.ts", "src/price.ts"],
     ])
+  })
+
+  it("splits many paths into batches without separating a rename", () => {
+    const scope = {
+      ...session.scope,
+      changedFiles: [
+        { path: "a.ts", previousPath: null, change: "modified" },
+        { path: "new.ts", previousPath: "old.ts", change: "renamed" },
+        { path: "b.ts", previousPath: null, change: "modified" },
+      ] satisfies ChangedFile[],
+    }
+
+    // Each path costs its length plus one separator byte: 5 bytes for `a.ts`.
+    expect(trackedDiffBatches(scope, 12)).toEqual([
+      ["a.ts"],
+      ["old.ts", "new.ts"],
+      ["b.ts"],
+    ])
+  })
+
+  it("keeps a path shared by two changes in one batch only", () => {
+    const scope = {
+      ...session.scope,
+      changedFiles: [
+        { path: "copy.ts", previousPath: "base.ts", change: "copied" },
+        { path: "base.ts", previousPath: null, change: "modified" },
+      ] satisfies ChangedFile[],
+    }
+
+    expect(trackedDiffBatches(scope, 10)).toEqual([["base.ts", "copy.ts"]])
+  })
+
+  it("keeps a rename with a change listed earlier that shares its old path", () => {
+    const scope = {
+      ...session.scope,
+      changedFiles: [
+        { path: "a.ts", previousPath: null, change: "added" },
+        { path: "m.ts", previousPath: null, change: "modified" },
+        { path: "b.ts", previousPath: "a.ts", change: "renamed" },
+      ] satisfies ChangedFile[],
+    }
+
+    expect(trackedDiffBatches(scope, 6)).toEqual([["a.ts", "b.ts"], ["m.ts"]])
+  })
+
+  it("joins two groups that a later change links", () => {
+    const scope = {
+      ...session.scope,
+      changedFiles: [
+        { path: "b.ts", previousPath: "a.ts", change: "renamed" },
+        { path: "d.ts", previousPath: "c.ts", change: "renamed" },
+        { path: "c.ts", previousPath: "b.ts", change: "copied" },
+      ] satisfies ChangedFile[],
+    }
+
+    expect(trackedDiffBatches(scope, 6)).toEqual([
+      ["a.ts", "b.ts", "c.ts", "d.ts"],
+    ])
+  })
+
+  it("joins the diff of every batch in order", async () => {
+    const calls: string[][] = []
+    const git = fakeGitRepository({
+      readDiff: async (_root, _base, paths) => {
+        calls.push([...paths])
+
+        return paths.map(filePath => `diff --git a/${filePath}\n`).join("")
+      },
+    })
+    const changedFiles: ChangedFile[] = Array.from(
+      { length: 30_000 },
+      (_, index) => ({
+        path: `src/module-${index}/file.ts`,
+        previousPath: null,
+        change: "added",
+      }),
+    )
+    const workspace = await createWorkspacePreparer(git)("/repo", {
+      ...session.scope,
+      changedFiles,
+    })
+    const diff = await readFile(workspace.diffPath, "utf8")
+    await workspace.cleanup()
+
+    expect(calls.length).toBeGreaterThan(1)
+    expect(calls.flat()).toHaveLength(30_000)
+    expect(diff.split("\n")[0]).toBe("diff --git a/src/module-0/file.ts")
+    expect(diff.split("\n").at(-2)).toBe(
+      "diff --git a/src/module-29999/file.ts",
+    )
   })
 
   it("writes the diff to a temporary folder and removes it on cleanup", async () => {

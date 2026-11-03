@@ -30,12 +30,12 @@ describe("instruction files", () => {
     ])
   })
 
-  it("ships every instruction file in docs/", async () => {
+  it("ships every instruction file in instructions/", async () => {
     expect(await findMissingInstructionFiles(instructionsDirectory)).toEqual([])
   })
 
   it("reports every file as missing from a directory without them", async () => {
-    expect(await findMissingInstructionFiles("/no/such/docs")).toEqual(
+    expect(await findMissingInstructionFiles("/no/such/instructions")).toEqual(
       allInstructionFiles(),
     )
   })
