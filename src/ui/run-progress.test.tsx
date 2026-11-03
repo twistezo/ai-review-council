@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 
 import type { AgentProgress } from '../execution/agent-progress.js'
 import { waitingProgress } from '../execution/agent-progress.js'
-import { columnWidths, RunProgressView } from './components/run-progress.js'
+import { RunProgressView } from './components/run-progress.js'
 import type { RunRow } from './run-progress.js'
 import { describeStatus, formatElapsed, isRunFinished, sortRunRows } from './run-progress.js'
 
@@ -63,6 +63,16 @@ describe('describeStatus', () => {
     expect(finished(312_400)).toBe('done · 4 findings · 312k tokens')
     expect(finished(999_600)).toBe('done · 4 findings · 1.0M tokens')
     expect(finished(1_240_000, null)).toBe('done · 1.2M tokens')
+  })
+
+  it('switches token units at a thousand and just below a million', () => {
+    const tokens = (count: number): string => describeStatus(row('1', { phase: 'done', tokens: count, note: null }), rows)
+
+    expect(tokens(0)).toBe('done · 0 tokens')
+    expect(tokens(999)).toBe('done · 999 tokens')
+    expect(tokens(1_000)).toBe('done · 1k tokens')
+    expect(tokens(999_499)).toBe('done · 999k tokens')
+    expect(tokens(999_500)).toBe('done · 1.0M tokens')
   })
 
   it('adds the used tokens to a failed agent too', () => {
@@ -129,21 +139,5 @@ describe('RunProgressView', () => {
     expect(lines).toHaveLength(rows.length + 3)
     expect(lines.every((line) => line.trimEnd().length <= windowColumns)).toBe(true)
     expect(lines[4]).toContain('✘ failed')
-  })
-})
-
-describe('columnWidths', () => {
-  it('shrinks the status column to fit, but never below its minimum', () => {
-    const total = (windowColumns: number): number => {
-      const widths = columnWidths(rows, windowColumns)
-
-      // the indent and the time column are fixed at 1 and 8
-      return 1 + widths.provider + widths.model + widths.effort + widths.review + widths.status + 8
-    }
-
-    expect(columnWidths(rows, 200).status).toBe(40)
-    expect(total(80)).toBeLessThanOrEqual(80 - 2)
-    expect(columnWidths(rows, 80).status).toBeGreaterThan(16)
-    expect(columnWidths(rows, 40).status).toBe(16)
   })
 })

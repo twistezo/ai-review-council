@@ -11,7 +11,7 @@ Docs:
 - [CHANGELOG.md](CHANGELOG.md)
 - [ARCHITECTURE.md](ARCHITECTURE.md)
 
-## Supported agents
+## Supported Agents
 
 | Agent   | CLI                      | Reviewer | Council | Models | Effort  | Plan                                |
 | ------- | ------------------------ | :------: | :-----: | ------ | ------- | ----------------------------------- |
@@ -38,17 +38,16 @@ CLIs must be available on `PATH` and logged in. Usage and availability depend on
 npm install -g @twistezo/ai-review-council
 
 # run with optional args
-ai-review-council --dir ~/projects/my-app --lang pl --scope codebase --reviewers 2
+ai-review-council --dir ~/projects/my-app --lang pl --scope codebase
 
 ```
 
-| Option            | Value                                  | Default |
-| ----------------- | -------------------------------------- | ------- |
-| `-d, --dir`       | folder inside a Git repository         | -       |
-| `-l, --lang`      | `en`, `pl`                             | `en`    |
-| `-s, --scope`     | `uncommitted`, `codebase`, commit hash | -       |
-| `-r, --reviewers` | 1 to 8                                 | -       |
-| `-t, --timeout`   | minutes per agent, 1 to 30             | `10`    |
+| Option          | Value                                  | Default |
+| --------------- | -------------------------------------- | ------- |
+| `-d, --dir`     | folder inside a Git repository         | -       |
+| `-l, --lang`    | `en`, `pl`                             | `en`    |
+| `-s, --scope`   | `uncommitted`, `codebase`, commit hash | -       |
+| `-t, --timeout` | minutes per agent, 1 to 30             | `10`    |
 
 ## Develop
 
@@ -59,3 +58,9 @@ npm test
 npm run typecheck
 npm run build # dist/
 ```
+
+## Dev-Docs
+
+[`dev-docs/`](dev-docs) is the domain memory for agents and people. Written in the [Matt Pocock skills](https://github.com/mattpocock/skills) style:
+
+- [`dev-docs/GLOSSARY.md`](dev-docs/GLOSSARY.md): Generated and kept up to date with the `domain-modeling` skill.

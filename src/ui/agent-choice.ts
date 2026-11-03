@@ -60,14 +60,8 @@ export const choiceToConfiguration = (
   return model === undefined ? null : toConfiguration(model, choice.effort)
 }
 
-// Keeps existing reviewers; new ones start from the fallback and cycle through the review types.
-export const resizeReviewers = (
-  reviewers: readonly ReviewerAssignment[],
-  count: number,
-  fallback: AgentConfiguration,
-): ReviewerAssignment[] =>
-  Array.from(
-    { length: count },
-    (_, index) =>
-      reviewers[index] ?? { configuration: fallback, reviewType: reviewTypes[index % reviewTypes.length] ?? 'code' },
-  )
+// The reviewer at a zero-based position cycles through the review types.
+export const newReviewer = (configuration: AgentConfiguration, position: number): ReviewerAssignment => ({
+  configuration,
+  reviewType: reviewTypes[position % reviewTypes.length] ?? 'code',
+})

@@ -62,17 +62,34 @@ describe('buildReviewScope', () => {
   })
 
   it('diffs the working tree against the base commit, as `git reset --soft` would leave it', async () => {
+    const olderCommit = { hash: 'c'.repeat(40), subject: 'Start checkout' }
     const bases: string[] = []
     const git = fakeGitRepository({
+      resolveCommit: async (_root, ref) => (olderCommit.hash.startsWith(ref) ? olderCommit : null),
       listChangedFiles: async (_root, baseHash) => {
         bases.push(baseHash)
 
         return [{ path: 'src/cart.ts', previousPath: null, change: 'modified' }]
       },
     })
+    const result = await buildReviewScope(git, '/repo', { kind: 'since-commit', commitRef: 'cccc' })
+
+    expect(bases).toEqual([olderCommit.hash])
+    expect(result).toMatchObject({ ok: true, scope: { kind: 'since-commit', base: olderCommit, diffBase: olderCommit.hash } })
+  })
+
+  it('checks the resolved full hash against the branch history', async () => {
+    const checked: string[] = []
+    const git = fakeGitRepository({
+      isInHeadHistory: async (_root, hash) => {
+        checked.push(hash)
+
+        return true
+      },
+    })
     await buildReviewScope(git, '/repo', { kind: 'since-commit', commitRef: 'aaaa' })
 
-    expect(bases).toEqual([headCommit.hash])
+    expect(checked).toEqual([headCommit.hash])
   })
 
   it('leaves out a secret file renamed to an innocent name, and the reverse', async () => {

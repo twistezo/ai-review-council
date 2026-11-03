@@ -54,7 +54,7 @@ type FakeAdapterOptions = {
 export const fakeAdapter = (id: ProviderAdapter['id'], options: FakeAdapterOptions = {}): ProviderAdapter => ({
   id,
   displayName: providerDisplayNames[id],
-  checkStatus: async () => ({ provider: id, version: '1.0.0', problem: null, fix: null, loginChecked: true, ...options.status }),
+  checkStatus: async () => ({ provider: id, version: '1.0.0', problem: null, fix: null, ...options.status }),
   listModels: async () => {
     if (options.models instanceof Error) {
       throw options.models

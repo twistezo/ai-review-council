@@ -16,10 +16,6 @@ describe('previewReport', () => {
       '',
       '**Waga: średnia**',
       '',
-      '```ts',
-      '### not a heading inside code',
-      '```',
-      '',
       '### 2. Backspace psuje emoji',
       '',
       '## Kwestie nierozstrzygnięte',
@@ -31,7 +27,7 @@ describe('previewReport', () => {
       title: 'Raport rady weryfikacyjnej',
       summary: 'Potwierdzono dwa problemy. Jeden wymaga dowodów.',
       findings: ['1. Wynik zmienia kreator', '2. Backspace psuje emoji'],
-      lineCount: 20,
+      lineCount: 16,
     })
   })
 

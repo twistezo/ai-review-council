@@ -6,18 +6,18 @@ describe('parseCliOptions', () => {
   it('has no presets by default', () => {
     expect(parseCliOptions([])).toEqual({
       ok: true,
-      options: { directory: null, language: null, scope: null, reviewerCount: null, timeoutMinutes: 10, showHelp: false },
+      options: { directory: null, language: null, scope: null, timeoutMinutes: 10, showHelp: false },
     })
   })
 
   it('reads short and long options', () => {
     expect(parseCliOptions(['-d', '~/my app', '-l', 'pl', '-t', '3'])).toEqual({
       ok: true,
-      options: { directory: '~/my app', language: 'pl', scope: null, reviewerCount: null, timeoutMinutes: 3, showHelp: false },
+      options: { directory: '~/my app', language: 'pl', scope: null, timeoutMinutes: 3, showHelp: false },
     })
     expect(parseCliOptions(['--dir=/repo', '--lang', 'EN', '--timeout=30'])).toEqual({
       ok: true,
-      options: { directory: '/repo', language: 'en', scope: null, reviewerCount: null, timeoutMinutes: 30, showHelp: false },
+      options: { directory: '/repo', language: 'en', scope: null, timeoutMinutes: 30, showHelp: false },
     })
   })
 
@@ -38,15 +38,10 @@ describe('parseCliOptions', () => {
     })
   })
 
-  it('reads the number of reviewers', () => {
-    expect(parseCliOptions(['-r', '2'])).toMatchObject({ ok: true, options: { reviewerCount: 2 } })
-    expect(parseCliOptions(['--reviewers=8'])).toMatchObject({ ok: true, options: { reviewerCount: 8 } })
-  })
-
-  it.each(['0', '9', '1.5', 'two'])('rejects the reviewer count %j', (value) => {
-    expect(parseCliOptions(['--reviewers', value])).toEqual({
+  it.each(['-r', '--reviewers', '--reviewers=2'])('rejects the removed option %s', (option) => {
+    expect(parseCliOptions(option.includes('=') ? [option] : [option, '2'])).toMatchObject({
       ok: false,
-      error: 'The --reviewers option needs a whole number from 1 to 8.',
+      error: expect.stringContaining('Unknown option'),
     })
   })
 
@@ -65,9 +60,18 @@ describe('parseCliOptions', () => {
   })
 
   it('rejects unknown options, positional arguments and missing values', () => {
-    expect(parseCliOptions(['--model', 'x']).ok).toBe(false)
-    expect(parseCliOptions(['/repo']).ok).toBe(false)
-    expect(parseCliOptions(['--dir']).ok).toBe(false)
-    expect(parseCliOptions(['--dir', ' ']).ok).toBe(false)
+    expect(parseCliOptions(['--model', 'x'])).toEqual({ ok: false, error: expect.stringContaining("Unknown option '--model'") })
+    expect(parseCliOptions(['/repo'])).toEqual({ ok: false, error: expect.stringContaining("Unexpected argument '/repo'") })
+    expect(parseCliOptions(['--dir'])).toEqual({ ok: false, error: expect.stringContaining("Option '-d, --dir <value>' argument missing") })
+    expect(parseCliOptions(['--dir', ' '])).toEqual({ ok: false, error: 'The --dir option needs a path.' })
+  })
+
+  it('shows help when asked', () => {
+    expect(parseCliOptions(['-h'])).toMatchObject({ ok: true, options: { showHelp: true } })
+    expect(parseCliOptions(['--help', '--lang', 'pl'])).toMatchObject({ ok: true, options: { showHelp: true, language: 'pl' } })
+  })
+
+  it('reports an unknown option even when help is asked', () => {
+    expect(parseCliOptions(['-h', '--bogus'])).toEqual({ ok: false, error: expect.stringContaining("Unknown option '--bogus'") })
   })
 })

@@ -42,12 +42,6 @@ Sleep 500ms
 Enter
 Sleep 500ms
 
-# Three reviewers.
-Down 2
-Sleep 500ms
-Enter
-Sleep 500ms
-
 # Codex, GPT-6.1 Terra, low, code.
 Right
 Down 2
@@ -67,12 +61,14 @@ Sleep 500ms
 Enter
 Sleep 500ms
 
-# Copilot, Auto, default effort, ui-ux.
+# Copilot, Auto, default effort, ui-ux; confirm all reviewers.
 Down 2
 Right
 Right
 Sleep 500ms
 Enter
+Sleep 500ms
+Ctrl+D
 Sleep 500ms
 
 Type "make no mistakes"

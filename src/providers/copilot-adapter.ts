@@ -28,7 +28,6 @@ export const createCopilotAdapter = (run: RunCommand): CopilotAdapter => {
         versionArgs,
         loginStatusArgs: null,
         installFix: 'Install Copilot CLI or GitHub CLI with `gh copilot` support, then run this app again.',
-        loginFix: command === 'gh' ? 'Run `gh copilot -- login`.' : 'Run `copilot login`.',
       })
     },
     // Free can use Auto even when the named-model catalog is empty.

@@ -1,24 +1,27 @@
-import { Box, Text } from 'ink'
+import { Box, Text, useInput } from 'ink'
 import type { JSX } from 'react'
 import { useState } from 'react'
 
 import type { ReviewerAssignment } from '../../domain/review-session.js'
 import { maxReviewers } from '../../domain/review-session.js'
 import type { CatalogModel } from '../../providers/model-catalog.js'
-import { choiceFromConfiguration, choiceToConfiguration, resizeReviewers } from '../agent-choice.js'
+import { choiceFromConfiguration, choiceToConfiguration, newReviewer } from '../agent-choice.js'
 import { AgentPicker } from '../components/agent-picker.js'
 import { ReviewerList } from '../components/reviewer-list.js'
-import { SelectList } from '../components/select-list.js'
 import { StepFrame } from '../components/step-frame.js'
 import { theme } from '../theme.js'
 
+// Only accepted reviewers count; the draft is the one being edited, null once the limit is reached.
+export type ReviewerSelection = {
+  accepted: ReviewerAssignment[]
+  draft: ReviewerAssignment | null
+}
+
 type ReviewersStepProps = {
   models: readonly CatalogModel[]
-  value: readonly ReviewerAssignment[]
-  // back from a later step: open the last reviewer instead of the count question
-  resumeAtLast: boolean
-  // from `--reviewers`; skips the count question
-  presetCount: number | null
+  // a draft is kept when Esc goes back to the council
+  value: ReviewerSelection
+  onChange: (selection: ReviewerSelection) => void
   onSubmit: (reviewers: ReviewerAssignment[]) => void
   onBack?: () => void
 }
@@ -44,103 +47,82 @@ const ReviewerEditor = ({ models, reviewer, onChange, onSubmit }: ReviewerEditor
           onChange({ ...reviewer, configuration })
         }
       }}
-      reviewType={{ value: reviewer.reviewType, onChange: (reviewType) => onChange({ ...reviewer, reviewType }) }}
+      reviewType={{
+        value: reviewer.reviewType,
+        onChange: (reviewType) => onChange({ ...reviewer, reviewType }),
+      }}
       onSubmit={onSubmit}
     />
   )
 }
 
 // A new reviewer starts from a clean choice: the first model with its default effort.
-const resize = (
-  models: readonly CatalogModel[],
-  reviewers: readonly ReviewerAssignment[],
-  count: number,
-): ReviewerAssignment[] => {
-  const fresh = choiceToConfiguration(models, choiceFromConfiguration(models, null))
+const freshReviewer = (models: readonly CatalogModel[], position: number): ReviewerAssignment | null => {
+  const configuration = choiceToConfiguration(models, choiceFromConfiguration(models, null))
 
-  return fresh === null ? [...reviewers] : resizeReviewers(reviewers, count, fresh)
+  return configuration === null ? null : newReviewer(configuration, position)
 }
 
-export const ReviewersStep = ({
-  models,
-  value,
-  resumeAtLast,
-  presetCount,
-  onSubmit,
-  onBack,
-}: ReviewersStepProps): JSX.Element => {
-  const [reviewers, setReviewers] = useState<ReviewerAssignment[]>(() =>
-    presetCount === null ? [...value] : resize(models, value, presetCount),
-  )
-  // null shows the count question; a number edits that reviewer. `--reviewers` skips the question.
-  // Esc from the prompt opens the last reviewer, with every choice kept.
-  const [editing, setEditing] = useState<number | null>(() => {
-    if (resumeAtLast && value.length > 0) {
-      return reviewers.length - 1
+// The next draft, or null when the accepted reviewers reach the limit.
+const nextDraft = (models: readonly CatalogModel[], accepted: readonly ReviewerAssignment[]): ReviewerAssignment | null =>
+  accepted.length < maxReviewers ? freshReviewer(models, accepted.length) : null
+
+export const ReviewersStep = ({ models, value, onChange, onSubmit, onBack }: ReviewersStepProps): JSX.Element => {
+  // coming back from the prompt, every accepted reviewer stays and a new one opens
+  const [selection, setSelection] = useState<ReviewerSelection>(() => ({
+    accepted: value.accepted,
+    draft: value.draft ?? nextDraft(models, value.accepted),
+  }))
+  const { accepted, draft } = selection
+  const isAtLimit = accepted.length === maxReviewers
+
+  const updateSelection = (next: ReviewerSelection): void => {
+    setSelection(next)
+    onChange(next)
+  }
+
+  useInput((input, key) => {
+    if (key.ctrl && input === 'd' && accepted.length > 0) {
+      onSubmit(accepted)
     }
-
-    return presetCount === null ? null : 0
   })
-
-  if (editing === null) {
-    return (
-      <StepFrame title="Reviewers" hints="↑↓ row · Enter confirm" onBack={onBack}>
-        <Box flexDirection="column" marginBottom={1}>
-          <Text dimColor>How many reviewers? Each works independently.</Text>
-          <Text dimColor>Mix providers and models to catch more.</Text>
-        </Box>
-        <SelectList
-          items={Array.from({ length: maxReviewers }, (_, index) => ({
-            key: String(index + 1),
-            label: String(index + 1),
-          }))}
-          initialKey={String(Math.max(1, value.length))}
-          onSelect={(key) => {
-            setReviewers((previous) => resize(models, previous, Number(key)))
-            setEditing(0)
-          }}
-        />
-      </StepFrame>
-    )
-  }
-
-  const reviewer = reviewers[editing]
-  if (reviewer === undefined) {
-    return <Text color={theme.failure}>Reviewer not found.</Text>
-  }
 
   return (
     <StepFrame
-      title={`Reviewer ${editing + 1} of ${reviewers.length}`}
-      hints="↑↓ row · ←→ column · Enter confirm"
+      title={isAtLimit ? 'Reviewers' : `Reviewer ${accepted.length + 1}`}
+      hints="↑↓ row · ←→ column · Enter next · Ctrl+D confirm"
       onBack={() => {
-        if (editing > 0) {
-          setEditing(editing - 1)
-        } else if (presetCount === null) {
-          setEditing(null)
-        } else {
+        const last = accepted.at(-1)
+        if (last === undefined) {
           onBack?.()
+        } else {
+          updateSelection({ accepted: accepted.slice(0, -1), draft: last })
         }
       }}
     >
-      {editing > 0 && (
+      {accepted.length > 0 && (
         <Box flexDirection="column" marginBottom={1}>
-          <ReviewerList reviewers={reviewers.slice(0, editing)} dimmed />
+          <ReviewerList reviewers={accepted} dimmed />
         </Box>
       )}
-      <ReviewerEditor
-        key={editing}
-        models={models}
-        reviewer={reviewer}
-        onChange={(next) => setReviewers((previous) => previous.map((item, index) => (index === editing ? next : item)))}
-        onSubmit={() => {
-          if (editing + 1 < reviewers.length) {
-            setEditing(editing + 1)
-          } else {
-            onSubmit(reviewers)
-          }
-        }}
-      />
+      {isAtLimit && (
+        <Text dimColor>
+          Maximum {maxReviewers} reviewers. Press Ctrl+D to confirm them or Esc to edit the last one.
+        </Text>
+      )}
+      {!isAtLimit && draft === null && <Text color={theme.failure}>No model is available for reviewers.</Text>}
+      {draft !== null && (
+        <ReviewerEditor
+          key={accepted.length}
+          models={models}
+          reviewer={draft}
+          onChange={(next) => updateSelection({ accepted, draft: next })}
+          onSubmit={() => {
+            const nextAccepted = [...accepted, draft]
+            updateSelection({ accepted: nextAccepted, draft: nextDraft(models, nextAccepted) })
+          }}
+        />
+      )}
     </StepFrame>
   )
 }

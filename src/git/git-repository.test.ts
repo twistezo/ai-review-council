@@ -18,6 +18,15 @@ describe('parseNameStatus', () => {
     ])
   })
 
+  it('reads a copied file with its source path', () => {
+    const output = ['C075', 'src/base.ts', 'src/base copy.ts', 'M', 'src/a.ts', ''].join('\0')
+
+    expect(parseNameStatus(output)).toEqual([
+      { path: 'src/base copy.ts', previousPath: 'src/base.ts', change: 'copied' },
+      { path: 'src/a.ts', previousPath: null, change: 'modified' },
+    ])
+  })
+
   it('returns nothing for an empty diff', () => {
     expect(parseNameStatus('')).toEqual([])
   })
@@ -69,6 +78,64 @@ describe('createGitRepository', () => {
       head: { hash: base, subject: 'Fix bug' },
       hasChanges: false,
     })
+  })
+
+  it('reports changes and the current branch', async () => {
+    const git = createGitRepository(
+      fakeRunCommand({
+        'git symbolic-ref --quiet --short HEAD': commandResult({ stdout: 'feature/cart\n' }),
+        'git log -1 --format=%H%x00%s --end-of-options HEAD^{commit}': commandResult({ stdout: `${base}\0Fix bug\n` }),
+        'git status --porcelain=v1 -z --untracked-files=normal': commandResult({ stdout: ' M src/a.ts\0' }),
+      }),
+    )
+
+    expect(await git.readState('/repo')).toMatchObject({ branch: 'feature/cart', hasChanges: true })
+  })
+
+  it('reports no HEAD commit in a repository without commits', async () => {
+    const git = createGitRepository(
+      fakeRunCommand({
+        'git symbolic-ref --quiet --short HEAD': commandResult({ stdout: 'main\n' }),
+        'git status --porcelain=v1 -z --untracked-files=normal': commandResult({ stdout: '?? a.ts\0' }),
+      }),
+    )
+
+    expect(await git.readState('/repo')).toEqual({ root: '/repo', branch: 'main', head: null, hasChanges: true })
+  })
+
+  it('reads the repository root and the Git version, or nothing when Git fails', async () => {
+    const git = createGitRepository(
+      fakeRunCommand({
+        'git rev-parse --show-toplevel': commandResult({ stdout: '/repo\n' }),
+        'git --version': commandResult({ stdout: 'git version 2.50.0\n' }),
+      }),
+    )
+    const broken = createGitRepository(fakeRunCommand({}))
+
+    expect(await git.resolveRoot('/repo/src')).toBe('/repo')
+    expect(await git.readVersion()).toBe('git version 2.50.0')
+    expect(await broken.resolveRoot('/tmp')).toBeNull()
+    expect(await broken.readVersion()).toBeNull()
+  })
+
+  it('passes a user ref after the end of options so it cannot act as a flag', async () => {
+    const git = createGitRepository(
+      fakeRunCommand({
+        'git log -1 --format=%H%x00%s --end-of-options abcd^{commit}': commandResult({ stdout: `${base}\0Fix bug\n` }),
+      }),
+    )
+
+    expect(await git.resolveCommit('/repo', 'abcd')).toEqual({ hash: base, subject: 'Fix bug' })
+  })
+
+  it('returns no commit when Git prints something other than a full hash', async () => {
+    const git = createGitRepository(
+      fakeRunCommand({
+        'git log -1 --format=%H%x00%s --end-of-options abcd^{commit}': commandResult({ stdout: 'abcd\0Fix bug\n' }),
+      }),
+    )
+
+    expect(await git.resolveCommit('/repo', 'abcd')).toBeNull()
   })
 
   it('reads the diff of the given paths only, and nothing for no paths', async () => {

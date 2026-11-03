@@ -17,7 +17,7 @@ export const PromptStep = ({ value, readClipboard, onSubmit, onBack }: PromptSte
   const [prompt, setPrompt] = useState(value)
 
   return (
-    <StepFrame title="Review prompt" hints="Enter new line · Ctrl+D confirm · Cmd+V paste" onBack={onBack}>
+    <StepFrame title="Review prompt" hints="Enter newline · Ctrl+D confirm · Cmd+V paste" onBack={onBack}>
       <Box flexDirection="column" marginBottom={1}>
         <Text dimColor>Review context, goals and skills. Shared by all agents.</Text>
         <Text dimColor>Read-only local review. No live web access.</Text>

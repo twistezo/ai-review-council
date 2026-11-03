@@ -1,5 +1,7 @@
-import { readFile, stat } from 'node:fs/promises'
-import { describe, expect, it } from 'vitest'
+import { mkdtemp, readdir, readFile, rm, stat } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
+import { describe, expect, it, vi } from 'vitest'
 
 import type { ReviewSessionDraft } from '../domain/review-session.js'
 import { instructionsDirectory, readInstructions } from '../instructions/instruction-files.js'
@@ -79,7 +81,15 @@ describe('review workspace', () => {
       },
     })
 
-    await expect(createWorkspacePreparer(git)('/repo', session.scope)).rejects.toThrow('Could not read the diff')
+    const temporaryRoot = await mkdtemp(path.join(tmpdir(), 'workspace-test-'))
+    vi.stubEnv('TMPDIR', temporaryRoot)
+    try {
+      await expect(createWorkspacePreparer(git)('/repo', session.scope)).rejects.toThrow('Could not read the diff')
+      expect(await readdir(temporaryRoot)).toEqual([])
+    } finally {
+      vi.unstubAllEnvs()
+      await rm(temporaryRoot, { recursive: true, force: true })
+    }
   })
 
   it('takes the diff against the scope diff base, the empty tree for the entire codebase', async () => {
@@ -130,11 +140,24 @@ describe('describeReviewResult', () => {
     expect(output.stderr).toBe('The council failed: auth expired')
   })
 
-  it('prints no report when every reviewer failed or the run was cancelled', () => {
-    expect(describeReviewResult({ kind: 'reviewers-failed', reviewerReports: reports })).toMatchObject({
+  it('prints no report when every reviewer failed and names each failed reviewer', () => {
+    const failed: ReviewerReport[] = [
+      { reviewer, report: null, error: 'auth expired' },
+      { reviewer: { ...reviewer, number: 2 }, report: null, error: 'Timed out after 10 min' },
+    ]
+
+    expect(describeReviewResult({ kind: 'reviewers-failed', reviewerReports: failed })).toEqual({
       stdout: null,
+      stderr: [
+        'Every reviewer failed, so the council did not run:',
+        'Reviewer 1 · Claude · Haiku 5.5 · low · code: auth expired',
+        'Reviewer 2 · Claude · Haiku 5.5 · low · code: Timed out after 10 min',
+      ].join('\n'),
       exitCode: 1,
     })
+  })
+
+  it('prints no report when the run was cancelled', () => {
     expect(describeReviewResult({ kind: 'cancelled' })).toEqual({ stdout: null, stderr: 'Review cancelled.', exitCode: 130 })
   })
 })

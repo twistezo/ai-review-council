@@ -34,7 +34,6 @@ const main = async (): Promise<void> => {
         language: parsed.options.language,
         directory: parsed.options.directory,
         scope: parsed.options.scope,
-        reviewerCount: parsed.options.reviewerCount,
       }}
       timeoutMinutes={parsed.options.timeoutMinutes}
       onFinish={(outcome) => {

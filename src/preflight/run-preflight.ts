@@ -36,7 +36,7 @@ const checkGit = async (git: GitRepository): Promise<PreflightCheck> => {
         label: 'Git',
         state: 'failed',
         detail: '`git` was not found in PATH. Git is required.',
-        fix: 'Install Git (for example `xcode-select --install`), then run this app again.',
+        fix: null,
       }
     : { label: 'Git', state: 'ok', detail: version, fix: null }
 }
@@ -75,13 +75,11 @@ const checkProvider = async (adapter: ProviderAdapter): Promise<ProviderCheck> =
       return unavailable('The CLI returned no models.', 'Check your plan and CLI configuration.')
     }
 
-    const loginNote = status.loginChecked ? '' : '; login checked when the review starts'
-
     return {
       check: {
         label: adapter.displayName,
         state: 'ok',
-        detail: `${status.version ?? ''}, ${models.length} models${loginNote}`,
+        detail: `${status.version ?? ''}, ${models.length} models`,
         fix: null,
       },
       models,
@@ -107,7 +105,7 @@ export const runPreflight = async ({
     instructionsCheck.state === 'failed' ? 'Instruction files are missing.' : null,
     models.some((model) => isCouncilProvider(model.provider))
       ? null
-      : 'At least one of Codex or Claude must be installed and logged in.',
+      : 'At least one of Codex or Claude must be available.',
   ].filter((blocker) => blocker !== null)
 
   return {

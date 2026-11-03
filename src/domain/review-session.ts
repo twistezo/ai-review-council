@@ -39,7 +39,7 @@ const agentConfigurationSchema = z
   )
 export type AgentConfiguration = z.infer<typeof agentConfigurationSchema>
 
-export const maxReviewers = 8
+export const maxReviewers = 10
 
 const reviewerAssignmentSchema = z.object({
   configuration: agentConfigurationSchema,

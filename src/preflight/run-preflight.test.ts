@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { fakeAdapter, fakeGitRepository } from '../test-support/fakes.js'
-import type { PreflightDependencies } from './run-preflight.js'
+import type { PreflightCheck, PreflightDependencies, PreflightResult } from './run-preflight.js'
 import { runPreflight } from './run-preflight.js'
 
 const dependencies = (overrides: Partial<PreflightDependencies> = {}): PreflightDependencies => ({
@@ -10,6 +10,9 @@ const dependencies = (overrides: Partial<PreflightDependencies> = {}): Preflight
   findMissingInstructionFiles: async () => [],
   ...overrides,
 })
+
+const checkLabelled = (result: PreflightResult, label: string): PreflightCheck | undefined =>
+  result.checks.find((check) => check.label === label)
 
 describe('runPreflight', () => {
   it('passes and collects the models of both providers', async () => {
@@ -24,22 +27,22 @@ describe('runPreflight', () => {
     ])
   })
 
-  it('continues with one provider when the other is not logged in', async () => {
+  it('continues with one provider when the other is unavailable', async () => {
     const result = await runPreflight(
       dependencies({
         adapters: [
-          fakeAdapter('codex', { status: { problem: 'Not logged in.', fix: 'Run `codex login`' } }),
+          fakeAdapter('codex', { status: { problem: 'Provider is unavailable.' } }),
           fakeAdapter('claude'),
         ],
       }),
     )
 
     expect(result.blocker).toBeNull()
-    expect(result.checks[1]).toEqual({
+    expect(checkLabelled(result, 'Codex')).toEqual({
       label: 'Codex',
       state: 'unavailable',
-      detail: 'Not logged in.',
-      fix: 'Run `codex login`',
+      detail: 'Provider is unavailable.',
+      fix: null,
     })
     expect(result.models.every((model) => model.provider === 'claude')).toBe(true)
   })
@@ -54,8 +57,13 @@ describe('runPreflight', () => {
       }),
     )
 
-    expect(result.blocker).toBe('At least one of Codex or Claude must be installed and logged in.')
-    expect(result.checks[2]?.detail).toBe('Could not read the model catalog: timeout')
+    expect(result.blocker).toBe('At least one of Codex or Claude must be available.')
+    expect(checkLabelled(result, 'Claude')).toEqual({
+      label: 'Claude',
+      state: 'unavailable',
+      detail: 'Could not read the model catalog: timeout',
+      fix: 'Update the CLI to the latest version.',
+    })
   })
 
   it('blocks when only Copilot is available, since it cannot be the council agent', async () => {
@@ -69,16 +77,15 @@ describe('runPreflight', () => {
     )
 
     expect(result.models.map((model) => model.provider)).toEqual(['copilot'])
-    expect(result.blocker).toBe('At least one of Codex or Claude must be installed and logged in.')
+    expect(result.blocker).toBe('At least one of Codex or Claude must be available.')
   })
 
-  it('keeps Copilot usable as a reviewer next to a council provider and notes the unchecked login', async () => {
+  it('keeps Copilot usable as a reviewer next to a council provider', async () => {
     const result = await runPreflight(
       dependencies({
         adapters: [
           fakeAdapter('codex'),
           fakeAdapter('copilot', {
-            status: { loginChecked: false },
             models: [{ id: 'auto', label: 'Auto', efforts: [] }],
           }),
         ],
@@ -86,10 +93,10 @@ describe('runPreflight', () => {
     )
 
     expect(result.blocker).toBeNull()
-    expect(result.checks[2]).toEqual({
+    expect(checkLabelled(result, 'Copilot')).toEqual({
       label: 'Copilot',
       state: 'ok',
-      detail: '1.0.0, 1 models; login checked when the review starts',
+      detail: '1.0.0, 1 models',
       fix: null,
     })
   })
@@ -98,12 +105,46 @@ describe('runPreflight', () => {
     const result = await runPreflight(dependencies({ git: fakeGitRepository({ readVersion: async () => null }) }))
 
     expect(result.blocker).toBe('Git is required.')
+    expect(checkLabelled(result, 'Git')).toMatchObject({ state: 'failed', detail: '`git` was not found in PATH. Git is required.' })
+  })
+
+  it('names every blocker at once when Git, the instructions and the council providers are all missing', async () => {
+    const result = await runPreflight(
+      dependencies({
+        git: fakeGitRepository({ readVersion: async () => null }),
+        adapters: [fakeAdapter('codex', { status: { problem: '`codex` was not found in PATH.' } })],
+        findMissingInstructionFiles: async () => ['common.md', 'reviewer/reviewer.md'],
+      }),
+    )
+
+    expect(result.blocker).toBe(
+      'Git is required. Instruction files are missing. At least one of Codex or Claude must be available.',
+    )
+    expect(checkLabelled(result, 'Instructions')?.detail).toBe('Missing: docs/common.md, docs/reviewer/reviewer.md')
+  })
+
+  it('treats a provider that lists no models as unavailable', async () => {
+    const result = await runPreflight(dependencies({ adapters: [fakeAdapter('codex', { models: [] }), fakeAdapter('claude')] }))
+
+    expect(result.blocker).toBeNull()
+    expect(checkLabelled(result, 'Codex')).toEqual({
+      label: 'Codex',
+      state: 'unavailable',
+      detail: 'The CLI returned no models.',
+      fix: 'Check your plan and CLI configuration.',
+    })
+    expect(result.models.some((model) => model.provider === 'codex')).toBe(false)
   })
 
   it('blocks when instruction files are missing', async () => {
     const result = await runPreflight(dependencies({ findMissingInstructionFiles: async () => ['council/council.md'] }))
 
     expect(result.blocker).toBe('Instruction files are missing.')
-    expect(result.checks.at(-1)?.detail).toBe('Missing: docs/council/council.md')
+    expect(checkLabelled(result, 'Instructions')).toEqual({
+      label: 'Instructions',
+      state: 'failed',
+      detail: 'Missing: docs/council/council.md',
+      fix: 'Reinstall the app or restore the missing files.',
+    })
   })
 })

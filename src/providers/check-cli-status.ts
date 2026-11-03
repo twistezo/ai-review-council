@@ -10,7 +10,6 @@ type CliStatusCheck = {
   // null when the CLI has no command that reads the login without starting it
   loginStatusArgs: readonly string[] | null
   installFix: string
-  loginFix: string
 }
 
 // Reads the existing CLI login only; never starts a login flow.
@@ -23,7 +22,6 @@ export const checkCliStatus = async (run: RunCommand, check: CliStatusCheck): Pr
       version: null,
       problem: `\`${check.command}\` was not found in PATH.`,
       fix: check.installFix,
-      loginChecked: false,
     }
   }
   if (!isSuccessful(versionResult)) {
@@ -32,17 +30,16 @@ export const checkCliStatus = async (run: RunCommand, check: CliStatusCheck): Pr
       version: null,
       problem: `\`${check.command} ${versionArgs.join(' ')}\` failed: ${versionResult.stderr.trim()}`,
       fix: check.installFix,
-      loginChecked: false,
     }
   }
   const version = versionResult.stdout.trim()
   if (check.loginStatusArgs === null) {
-    return { provider: check.provider, version, problem: null, fix: null, loginChecked: false }
+    return { provider: check.provider, version, problem: null, fix: null }
   }
   const loginResult = await run(check.command, check.loginStatusArgs)
   if (!isSuccessful(loginResult)) {
-    return { provider: check.provider, version, problem: 'Not logged in.', fix: check.loginFix, loginChecked: true }
+    return { provider: check.provider, version, problem: 'Provider is unavailable.', fix: null }
   }
 
-  return { provider: check.provider, version, problem: null, fix: null, loginChecked: true }
+  return { provider: check.provider, version, problem: null, fix: null }
 }

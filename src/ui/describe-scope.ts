@@ -1,6 +1,8 @@
 import type { ReviewScope } from '../domain/review-session.js'
 
-const describeRange = (scope: ReviewScope): string => {
+export const fileNoun = (count: number): string => (count === 1 ? 'file' : 'files')
+
+export const describeScopeRange = (scope: ReviewScope): string => {
   const base = scope.base.hash.slice(0, 7)
   switch (scope.kind) {
     case 'uncommitted':
@@ -13,7 +15,9 @@ const describeRange = (scope: ReviewScope): string => {
 }
 
 export const describeScope = (scope: ReviewScope): string => {
-  const excluded = scope.excludedFiles.length === 0 ? '' : `, ${scope.excludedFiles.length} likely secret file(s) excluded`
+  const changedCount = scope.changedFiles.length
+  const excludedCount = scope.excludedFiles.length
+  const excluded = excludedCount === 0 ? '' : `, ${excludedCount} likely secret ${fileNoun(excludedCount)} excluded`
 
-  return `${describeRange(scope)} (${scope.changedFiles.length} files${excluded})`
+  return `${describeScopeRange(scope)} (${changedCount} ${fileNoun(changedCount)}${excluded})`
 }

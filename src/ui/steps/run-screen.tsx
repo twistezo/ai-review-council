@@ -1,3 +1,4 @@
+import { basename } from 'node:path'
 import { Box, Text } from 'ink'
 import type { JSX } from 'react'
 import { useEffect, useState } from 'react'
@@ -14,6 +15,7 @@ import type { OpenReport } from '../../review/open-report.js'
 import { describeReviewResult } from '../../review/review-output.js'
 import { ReportResult } from '../components/report-result.js'
 import { RunProgress } from '../components/run-progress.js'
+import { describeScopeRange, fileNoun } from '../describe-scope.js'
 import type { RunRow } from '../run-progress.js'
 
 export type RunOutcome = { kind: 'finished'; result: ReviewRunResult } | { kind: 'failed'; error: string }
@@ -97,12 +99,13 @@ export const RunScreen = ({
     return () => controller.abort()
   }, [])
 
+  const changedCount = session.scope.changedFiles.length
+
   return (
     <Box flexDirection="column">
       <Text dimColor>
-        {outcome === null
-          ? `Reviewing ${session.scope.changedFiles.length} file(s)`
-          : `Reviewed ${session.scope.changedFiles.length} file(s)`}
+        {outcome === null ? 'Reviewing' : 'Reviewed'} {changedCount} {fileNoun(changedCount)} ·{' '}
+        {basename(session.repository.root)} · {describeScopeRange(session.scope)}
       </Text>
       <Box marginTop={1}>
         <RunProgress rows={rows} />

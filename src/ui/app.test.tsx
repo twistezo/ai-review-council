@@ -1,15 +1,19 @@
+import { mkdirSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { render } from 'ink-testing-library'
-import { describe, expect, it } from 'vitest'
+import { afterAll, describe, expect, it } from 'vitest'
 
 import type { AgentLaunch } from '../execution/agent-commands.js'
 import type { ReviewRunDependencies } from '../review/run-review.js'
-import { fakeAdapter, fakeGitRepository } from '../test-support/fakes.js'
+import { fakeAdapter, fakeGitRepository, headCommit } from '../test-support/fakes.js'
 import type { AppPresets, AppServices, WizardOutcome } from './app.js'
 import { App } from './app.js'
 
 const keys = {
   enter: '\r',
+  backspace: '\x7f',
+  tab: '\t',
   ctrlD: '\x04',
   ctrlV: '\x16',
   down: '\x1b[B',
@@ -19,12 +23,12 @@ const keys = {
 
 const delay = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms))
 
-// Agents that answer after a short pause, so the run screen renders in between.
+// Agents answer on the next turn of the event loop, after the run screen rendered.
 const fakeReview = (launches: AgentLaunch[] = []): ReviewRunDependencies => ({
   runAgent: async (launch, options) => {
     launches.push(launch)
     options.onEvent?.({ kind: 'read', target: 'src/checkout.ts' })
-    await delay(50)
+    await new Promise((resolve) => setImmediate(resolve))
     const isCouncil = launch.message.startsWith('# Council session')
 
     return { ok: true, report: isCouncil ? '# Review: VAT missing\n### VAT not added' : '### VAT not added', sessionId: 's' }
@@ -34,33 +38,35 @@ const fakeReview = (launches: AgentLaunch[] = []): ReviewRunDependencies => ({
   now: Date.now,
 })
 
-const frameChangeTimeoutMs = 1_000
+const waitTimeoutMs = 2_000
+// how long a key that changes nothing on screen is given before the next one
+const quietMs = 150
+// lets a step that just appeared register its input handlers
 const settleMs = 20
 
-// Waits for the frame to change, then lets the new step register its input handlers.
-const waitForFrameChange = async (readFrame: () => string, previous: string): Promise<void> => {
-  const deadline = Date.now() + frameChangeTimeoutMs
-  while (readFrame() === previous && Date.now() < deadline) {
-    await delay(5)
-  }
-  await delay(settleMs)
-}
+// a step title with its counter, e.g. ` Reviewer 1 • step 5 of 7`
+const stepTitle = (title: string): RegExp => new RegExp(`^ ${title} • step`, 'm')
+// an answers or summary line, e.g. ` Reviewers     1`
+const fieldLine = (label: string, value: string): RegExp => new RegExp(`^ +${label} +${value} *$`, 'm')
 
 type Session = {
   press: (...inputs: string[]) => Promise<void>
+  waitFor: (description: string, isReady: () => boolean) => Promise<void>
   waitForText: (text: string) => Promise<void>
+  waitForStep: (title: string) => Promise<void>
   frame: () => string
   // every frame rendered so far, including the last one before the app exits
   frames: () => readonly string[]
+  hasExited: () => boolean
   outcomes: WizardOutcome[]
 }
 
 const startApp = async (
   services: Partial<AppServices> = {},
-  presets: AppPresets = { language: null, directory: null, scope: null, reviewerCount: null },
+  presets: AppPresets = { language: null, directory: null, scope: null },
 ): Promise<Session> => {
   const outcomes: WizardOutcome[] = []
-  const { stdin, lastFrame, frames } = render(
+  const { stdin, frames } = render(
     <App
       title="ai-review-council v9.9.9"
       services={{
@@ -80,36 +86,79 @@ const startApp = async (
       onFinish={(outcome) => outcomes.push(outcome)}
     />,
   )
-  const frame = (): string => lastFrame() ?? ''
-  const waitForText = async (text: string): Promise<void> => {
-    const deadline = Date.now() + frameChangeTimeoutMs
-    while (!frame().includes(text) && Date.now() < deadline) {
+  // Ink clears the output on exit, so the last frame drawn is the last non-empty one.
+  const frame = (): string => frames.findLast((rendered) => rendered.trim() !== '') ?? ''
+  const waitFor = async (description: string, isReady: () => boolean): Promise<void> => {
+    const deadline = Date.now() + waitTimeoutMs
+    while (!isReady()) {
+      if (Date.now() > deadline) {
+        throw new Error(`Timed out waiting for ${description}. Last frame:\n${frame()}`)
+      }
       await delay(5)
     }
     await delay(settleMs)
   }
-  // The requirements check passes on its own and the first step appears.
-  await waitForText('step 1 of')
+  const waitForText = (text: string): Promise<void> => waitFor(`"${text}"`, () => frame().includes(text))
+  const waitForStep = (title: string): Promise<void> =>
+    waitFor(`the "${title}" step`, () => stepTitle(title).test(frame()))
+  await waitFor('the first step', () => frame().includes('step 1 of') || frame().includes('Requirements not met'))
 
   return {
-    waitForText,
-    frames: () => frames,
     press: async (...inputs) => {
       for (const input of inputs) {
         const previous = frame()
         stdin.write(input)
-        await waitForFrameChange(frame, previous)
+        const deadline = Date.now() + quietMs
+        while (frame() === previous && Date.now() < deadline) {
+          await delay(5)
+        }
+        await delay(settleMs)
       }
     },
+    waitFor,
+    waitForText,
+    waitForStep,
     frame,
+    frames: () => frames,
+    // Ink stops reading the input once the app has exited.
+    hasExited: () => stdin.listenerCount('readable') === 0,
     outcomes,
   }
 }
 
-// language, project, scope
-const toCouncil = [keys.enter, keys.enter, keys.enter]
+const allPresets: AppPresets = { language: 'pl', directory: tmpdir(), scope: { kind: 'uncommitted' } }
 
-describe('App', () => {
+// language, project and scope, each waiting for the next step
+const toCouncil = async (app: Session): Promise<void> => {
+  await app.press(keys.enter)
+  await app.waitForStep('Project folder')
+  await app.press(keys.enter)
+  await app.waitForStep('Review scope')
+  await app.press(keys.enter)
+  await app.waitForStep('Council agent')
+}
+
+const startAtCouncil = async (services: Partial<AppServices> = {}): Promise<Session> => {
+  const app = await startApp(services, allPresets)
+  await app.waitForStep('Council agent')
+
+  return app
+}
+
+// the default council and one default reviewer
+const toPrompt = async (app: Session): Promise<void> => {
+  await app.press(keys.enter, keys.enter, keys.ctrlD)
+  await app.waitForStep('Review prompt')
+}
+
+const projectsDirectory = mkdtempSync(join(tmpdir(), 'ai-review-council-ui-'))
+for (const folder of ['alpha-one', 'alpha-two', 'beta', 'other']) {
+  mkdirSync(join(projectsDirectory, folder))
+}
+
+afterAll(() => rmSync(projectsDirectory, { recursive: true, force: true }))
+
+describe.concurrent('App', () => {
   it('walks the whole flow and runs the review with the chosen agents', async () => {
     const launches: AgentLaunch[] = []
     const copied: string[] = []
@@ -131,44 +180,30 @@ describe('App', () => {
     expect(app.frame()).toMatch(
       /^ ai-review-council v9\.9\.9\n ✔ Git · ✔ Codex · ✔ Claude\n\n Report language • step 1 of 7\n/,
     )
-    expect(app.frame()).toContain('Report language')
-    expect(app.frame()).toContain('✔ Git · ✔ Codex · ✔ Claude')
 
-    await app.press(...toCouncil)
-    expect(app.frame()).toContain('Council agent')
+    await toCouncil(app)
     // answers so far, then the field this step sets
-    expect(app.frame()).toContain('Scope         uncommitted changes on aaaaaaa (1 files, 1 likely secret file(s) excluded)')
+    expect(app.frame()).toContain('Scope         uncommitted changes on aaaaaaa (1 file, 1 likely secret file excluded)')
     expect(app.frame()).toContain('Council       ← selecting')
     expect(app.frame()).not.toContain('Reviewers')
     // → to the effort column, medium -> high, Enter confirms
     await app.press(keys.right, keys.right, keys.down, keys.enter)
-
-    // two reviewers
-    await app.press(keys.down, keys.enter)
-    expect(app.frame()).toContain('Reviewer 1 of 2')
-    // → to the model column, a model without efforts, Enter goes to the next reviewer
-    await app.press(keys.right, keys.down, keys.enter)
-    expect(app.frame()).toContain('Reviewer 2 of 2')
-    expect(app.frame()).toContain('Codex • codex-small • default • code')
-    // the next reviewer starts fresh: focus on the left column, first model, its default effort
-    expect(app.frame()).toContain('› Provider')
-    expect(app.frame()).toContain('› codex-large')
-    expect(app.frame()).toContain('› medium')
-    expect(app.frame()).not.toContain('› high')
-    // → to the review column, security -> ui-ux
-    await app.press(keys.right, keys.right, keys.right, keys.down, keys.enter)
+    await app.waitForStep('Reviewer 1')
+    await app.press(keys.enter, keys.ctrlD)
+    await app.waitForStep('Review prompt')
 
     expect(app.frame()).toContain('Council       Codex · codex-large · high')
-    expect(app.frame()).toContain('Reviewers     2')
+    expect(app.frame()).toMatch(fieldLine('Reviewers', '1'))
     expect(app.frame()).toContain('Prompt        ← selecting')
+    expect(app.frame()).toContain('Enter newline · Ctrl+D confirm · Cmd+V paste')
     await app.press('Checkout total must include VAT', keys.enter, 'Rounding to 2 places', keys.ctrlD)
+    await app.waitForStep('Summary')
     const frame = app.frame()
-    expect(frame).toContain('Summary')
     expect(frame).toContain('Codex · codex-large · high')
     // no instruction files and no usage warning in the summary
     expect(frame).not.toContain('council.md')
     expect(frame).not.toContain('Starting launches')
-    expect(frame).toContain('1 likely secret file(s) excluded')
+    expect(frame).toContain('1 likely secret file excluded')
     expect(frame).toContain('Timeout       10 min per agent')
     const summaryLines = frame.split('\n')
     const summaryOrder = ['Language', 'Project', 'Branch', 'Scope', 'Council', 'Reviewers', 'Prompt', 'Timeout'].map(
@@ -180,18 +215,17 @@ describe('App', () => {
     expect(frame).toContain('Enter confirm · Esc back')
 
     await app.press(keys.escape)
-    expect(app.frame()).toContain('Review prompt')
+    await app.waitForStep('Review prompt')
     expect(app.frame()).toContain('Checkout total must include VAT')
     await app.press(keys.ctrlD)
-    expect(app.frame()).toContain('Summary')
+    await app.waitForStep('Summary')
 
     await app.press(keys.enter)
     await app.waitForText('c copy · o open · q quit')
     // a preview of the report under the finished table; the app waits for a key
-    expect(app.frame()).toContain('Reviewed 1 file(s)')
+    expect(app.frame()).toContain('Reviewed 1 file · repo · uncommitted changes on aaaaaaa')
     // framed, labelled as the report, with a blank line above the frame
     expect(app.frame()).toMatch(/00\s*\n\n ╭─+╮\n │ Report +│\n │ +│\n │ Review: VAT missing/)
-    expect(app.frame()).toContain('Review: VAT missing')
     expect(app.frame()).toContain('• VAT not added')
     expect(app.frame()).toContain('… 2 lines in the full report')
     // known already, so quitting with Ctrl+C here ends as a finished review
@@ -205,19 +239,20 @@ describe('App', () => {
     expect(opened).toEqual(copied)
 
     await app.press('q')
+    await app.waitFor('the app to exit', app.hasExited)
     // the last frame keeps the preview without the hints
-    const lastFrame = app.frames().findLast((rendered) => rendered.includes('• VAT not added')) ?? ''
-    expect(lastFrame).toContain('✔ Report opened: /tmp/review.md')
-    expect(lastFrame).not.toContain('q quit')
+    expect(app.frame()).toContain('✔ Report opened: /tmp/review.md')
+    expect(app.frame()).not.toContain('q quit')
 
-    const activeFrame = app.frames().find((rendered) => rendered.includes('Reviewing 1 file(s)')) ?? ''
+    const activeFrame =
+      app
+        .frames()
+        .find((rendered) => rendered.includes('Reviewing 1 file · repo · uncommitted changes on aaaaaaa')) ?? ''
     expect(activeFrame).toContain('Ctrl+C cancels all agents')
     expect(activeFrame.indexOf('Ctrl+C cancels all agents')).toBeGreaterThan(activeFrame.indexOf('council'))
     expect(activeFrame).not.toContain('file(s) · Ctrl+C')
-    const runFrame = app.frames().findLast((rendered) => rendered.includes('Reviewed 1 file(s)')) ?? ''
-    expect(runFrame).toMatch(/\n {2}Codex +codex-large +medium +ui-ux +✔ done · 1 finding/)
-    expect(runFrame).toMatch(/\n {2}Codex +codex-small +default +code +✔ done · 1 finding/)
-    expect(runFrame).toMatch(/\n {2}Codex +codex-large +high +council +✔ done · 1 finding/)
+    expect(app.frame()).toMatch(/\n {2}Codex +codex-large +medium +code +✔ done · 1 finding/)
+    expect(app.frame()).toMatch(/\n {2}Codex +codex-large +high +council +✔ done · 1 finding/)
     expect(app.outcomes).toEqual([
       {
         kind: 'finished',
@@ -230,13 +265,35 @@ describe('App', () => {
       cwd: '/repo',
       readableDirectories: ['/tmp/council-test'],
     })
+    expect(councilLaunch?.message).toContain('Language of the final report: English.')
     expect(councilLaunch?.message).toContain('## Review prompt\nCheckout total must include VAT\nRounding to 2 places')
-    expect(launches).toHaveLength(3)
+    expect(launches).toHaveLength(2)
+  })
+
+  it('writes the report in the language picked in the first step', async () => {
+    const launches: AgentLaunch[] = []
+    const app = await startApp({ review: fakeReview(launches) })
+    await app.press(keys.down, keys.enter)
+    await app.waitForStep('Project folder')
+    expect(app.frame()).toMatch(fieldLine('Language', 'Polish'))
+
+    await app.press(keys.enter)
+    await app.waitForStep('Review scope')
+    await app.press(keys.enter)
+    await app.waitForStep('Council agent')
+    await toPrompt(app)
+    await app.press(keys.ctrlD)
+    await app.waitForStep('Summary')
+    expect(app.frame()).toMatch(fieldLine('Language', 'Polish'))
+    await app.press(keys.enter)
+    await app.waitForText('q quit')
+
+    const councilLaunch = launches.find((launch) => launch.message.startsWith('# Council session'))
+    expect(councilLaunch?.message).toContain('Language of the final report: Polish.')
   })
 
   it('lists only the models of the selected provider', async () => {
-    const app = await startApp()
-    await app.press(...toCouncil)
+    const app = await startAtCouncil()
     expect(app.frame()).toContain('codex-large')
     expect(app.frame()).not.toContain('claude-large')
 
@@ -246,25 +303,23 @@ describe('App', () => {
   })
 
   it('offers Copilot to reviewers but not as the council agent', async () => {
-    const app = await startApp({
+    const app = await startAtCouncil({
       adapters: [fakeAdapter('codex'), fakeAdapter('copilot', { models: [{ id: 'auto', label: 'Auto', efforts: [] }] })],
     })
-    await app.press(...toCouncil)
     // the header lists every provider; the picker follows the step title
     const picker = (title: string): string => app.frame().slice(app.frame().indexOf(title))
     expect(picker('Council agent')).toContain('Codex')
     expect(picker('Council agent')).not.toContain('Copilot')
 
-    // council, then one reviewer
-    await app.press(keys.enter, keys.enter)
-    expect(picker('Reviewer 1 of 1')).toContain('Copilot')
+    await app.press(keys.enter)
+    await app.waitForStep('Reviewer 1')
+    expect(picker('Reviewer 1')).toContain('Copilot')
   })
 
   it('skips the language and folder steps given as options', async () => {
-    const app = await startApp({}, { language: 'pl', directory: tmpdir(), scope: null, reviewerCount: null })
+    const app = await startApp({}, { language: 'pl', directory: tmpdir(), scope: null })
 
-    expect(app.frame()).toContain('Review scope')
-    expect(app.frame()).toContain('step 1 of 5')
+    expect(app.frame()).toMatch(/^ Review scope • step 1 of 5$/m)
     // values line up in one column
     const lines = app.frame().split('\n')
     const valueColumn = (label: string): number => {
@@ -285,17 +340,16 @@ describe('App', () => {
   })
 
   it('shows the folder step with the error when the --dir path is invalid', async () => {
-    const app = await startApp({}, { language: null, directory: '/no/such/folder', scope: null, reviewerCount: null })
+    const app = await startApp({}, { language: null, directory: '/no/such/folder', scope: null })
     await app.press(keys.enter)
-    await app.waitForText('Not a directory')
+    await app.waitForText('Not a directory: /no/such/folder')
 
-    expect(app.frame()).toContain('Project folder')
-    expect(app.frame()).toContain('Not a directory: /no/such/folder')
+    expect(app.frame()).toMatch(stepTitle('Project folder'))
   })
 
   it('skips the scope step given as an option', async () => {
-    const app = await startApp({}, { language: 'pl', directory: tmpdir(), scope: { kind: 'uncommitted' }, reviewerCount: null })
-    await app.waitForText('Council agent')
+    const app = await startApp({}, allPresets)
+    await app.waitForStep('Council agent')
 
     expect(app.frame()).toContain('Council agent • step 1 of 4')
   })
@@ -303,32 +357,21 @@ describe('App', () => {
   it('shows the scope step with the error and the hash when the --scope commit is wrong', async () => {
     const app = await startApp(
       { git: fakeGitRepository({ isInHeadHistory: async () => false }) },
-      { language: 'pl', directory: tmpdir(), scope: { kind: 'since-commit', commitRef: 'aaaa' }, reviewerCount: null },
+      { language: 'pl', directory: tmpdir(), scope: { kind: 'since-commit', commitRef: 'aaaa' } },
     )
     await app.waitForText('not in the history')
 
-    expect(app.frame()).toContain('Review scope')
+    expect(app.frame()).toMatch(stepTitle('Review scope'))
     expect(app.frame()).toContain('Changes after this commit, uncommitted included:')
     expect(app.frame()).toContain('aaaa')
   })
 
-  it('goes straight to the first reviewer when the count is given as an option', async () => {
-    const app = await startApp({}, { language: 'pl', directory: tmpdir(), scope: { kind: 'uncommitted' }, reviewerCount: 3 })
-    await app.waitForText('Council agent')
-    await app.press(keys.enter)
-
-    expect(app.frame()).toContain('Reviewer 1 of 3')
-    expect(app.frame()).not.toContain('How many reviewers')
-    await app.press(keys.escape)
-    expect(app.frame()).toContain('Council agent')
-  })
-
   it('continues with only Claude Code when Codex is not available', async () => {
     const app = await startApp({
-      adapters: [fakeAdapter('codex', { status: { problem: 'Not logged in.' } }), fakeAdapter('claude')],
+      adapters: [fakeAdapter('codex', { status: { problem: 'Provider is unavailable.' } }), fakeAdapter('claude')],
     })
-    expect(app.frame()).toContain('– Codex (Not logged in.) · ✔ Claude')
-    await app.press(...toCouncil)
+    expect(app.frame()).toContain('– Codex (Provider is unavailable.) · ✔ Claude')
+    await toCouncil(app)
 
     expect(app.frame()).toContain('claude-large')
     expect(app.frame()).not.toContain('codex-large')
@@ -337,85 +380,418 @@ describe('App', () => {
   it('ends when no provider is available', async () => {
     const app = await startApp({
       adapters: [
-        fakeAdapter('codex', { status: { problem: 'Not logged in.' } }),
+        fakeAdapter('codex', { status: { problem: 'Provider is unavailable.' } }),
         fakeAdapter('claude', { status: { problem: '`claude` was not found in PATH.' } }),
       ],
     })
     await app.waitForText('Requirements not met')
 
-    expect(app.frame()).toContain('At least one of Codex or Claude must be installed and logged in.')
+    expect(app.frame()).toContain('At least one of Codex or Claude must be available.')
     await app.press(keys.enter)
     expect(app.outcomes).toEqual([{ kind: 'blocked' }])
   })
 
-  it('reviews the entire codebase chosen in the scope step', async () => {
-    const app = await startApp()
-    await app.press(keys.enter, keys.enter)
+  it.each([
+    [{ kind: 'since-commit', commitRef: 'aaaa' }, 'changes after aaaaaaa Add checkout form, uncommitted included'],
+    [{ kind: 'full' }, 'entire codebase on aaaaaaa, uncommitted included'],
+  ] as const)('shows the selected scope in the running and finished summary: %s', async (scope, label) => {
+    const app = await startApp(
+      {
+        git: fakeGitRepository({
+          readState: async () => ({
+            root: '/projects/ai-review-council/',
+            branch: 'main',
+            head: { hash: 'a'.repeat(40), subject: 'Subject' },
+            hasChanges: true,
+          }),
+          listChangedFiles: async () => [
+            { path: 'src/one.ts', previousPath: null, change: 'modified' },
+            { path: 'src/two.ts', previousPath: null, change: 'added' },
+          ],
+        }),
+      },
+      { language: 'pl', directory: tmpdir(), scope },
+    )
+    await app.waitForStep('Council agent')
+    await toPrompt(app)
+    await app.press(keys.ctrlD)
+    await app.waitForStep('Summary')
+    await app.press(keys.enter)
+    await app.waitForText('q quit')
+    // the scope line wraps at the test terminal width
+    const unwrap = (frame: string): string => frame.split(/\s+/).join(' ')
+    expect(app.frames().some((frame) => unwrap(frame).includes(`Reviewing 2 files · ai-review-council · ${label}`))).toBe(
+      true,
+    )
+    expect(unwrap(app.frame())).toContain(`Reviewed 2 files · ai-review-council · ${label}`)
+  })
+})
 
-    expect(app.frame()).toContain('Entire codebase')
-    await app.press(keys.down, keys.down, keys.enter)
-    await app.waitForText('Council agent')
-    expect(app.frame()).toContain('Scope         entire codebase on aaaaaaa, uncommitted included (1 files')
+describe.concurrent('App project step', () => {
+  it('lists matching folders on Tab and completes a single match', async () => {
+    const app = await startApp({ cwd: projectsDirectory })
+    await app.press(keys.enter)
+    await app.waitForStep('Project folder')
+
+    await app.press('/al', keys.tab)
+    await app.waitForText('alpha-two/')
+    expect(app.frame()).toContain(`${projectsDirectory}/alpha-`)
+    expect(app.frame()).toMatch(/^ +alpha-one\/$/m)
+    expect(app.frame()).not.toContain('beta/')
+
+    await app.press('o', keys.tab)
+    await app.waitForText(`${projectsDirectory}/alpha-one/`)
+    expect(app.frame()).not.toContain('alpha-two/')
   })
 
-  it('goes back from the prompt to the last reviewer, keeping every reviewer', async () => {
-    const app = await startApp()
-    await app.press(...toCouncil, keys.enter)
-    // two reviewers: the first with codex-small, the second with ui-ux
-    await app.press(keys.down, keys.enter)
-    await app.press(keys.right, keys.down, keys.enter)
-    await app.press(keys.right, keys.right, keys.right, keys.down, keys.enter)
-    await app.waitForText('Review prompt')
+  it('stays on the folder step when the folder is not in a Git repository', async () => {
+    const app = await startApp({ git: fakeGitRepository({ resolveRoot: async () => null }) })
+    await app.press(keys.enter)
+    await app.waitForStep('Project folder')
+    await app.press(keys.enter)
+    await app.waitForText('Not inside a Git repository')
+
+    expect(app.frame()).toMatch(stepTitle('Project folder'))
+  })
+
+  it('stays on the folder step when the repository has no commits', async () => {
+    const git = fakeGitRepository({
+      readState: async () => ({ root: '/repo', branch: 'main', head: null, hasChanges: true }),
+    })
+    const app = await startApp({ git })
+    await app.press(keys.enter)
+    await app.waitForStep('Project folder')
+    await app.press(keys.enter)
+    await app.waitForText('The repository has no commits, so there is nothing to compare against.')
+
+    expect(app.frame()).toMatch(stepTitle('Project folder'))
+  })
+
+  it('keeps the scope for the same repository and resets it for another one', async () => {
+    const git = fakeGitRepository({
+      resolveRoot: async (directory) => (directory.endsWith('other') ? '/other' : '/repo'),
+      readState: async (root) => ({ root, branch: 'main', head: headCommit, hasChanges: true }),
+    })
+    const app = await startApp({ git, cwd: projectsDirectory })
+    await app.press(keys.enter)
+    await app.waitForStep('Project folder')
+    await app.press(keys.enter)
+    await app.waitForStep('Review scope')
+    await app.press(keys.down, keys.down, keys.enter)
+    await app.waitForStep('Council agent')
+
+    await app.press(keys.escape, keys.escape)
+    await app.waitForStep('Project folder')
+    await app.press(keys.enter)
+    await app.waitForStep('Review scope')
+    expect(app.frame()).toContain('› Entire codebase')
 
     await app.press(keys.escape)
-    expect(app.frame()).toContain('Reviewer 2 of 2')
-    expect(app.frame()).toContain('Codex • codex-small • default • code')
-    expect(app.frame()).toContain('› ui-ux')
-    expect(app.frame()).not.toContain('How many reviewers')
+    await app.waitForStep('Project folder')
+    await app.press('/other', keys.enter)
+    await app.waitForStep('Review scope')
+    expect(app.frame()).toMatch(fieldLine('Project', '/other'))
+    expect(app.frame()).toContain('› Uncommitted only')
+  })
+})
 
-    await app.press(keys.enter)
-    expect(app.frame()).toContain('Review prompt')
-    expect(app.frame()).toContain('Codex • codex-large • medium  • ui-ux')
+describe.concurrent('App scope step', () => {
+  it('reviews the entire codebase', async () => {
+    const app = await startApp()
+    await app.press(keys.enter, keys.enter)
+    await app.waitForStep('Review scope')
 
-    // back past the reviewers to the council, then forward again: the count question, still set to 2
-    await app.press(keys.escape, keys.escape, keys.escape, keys.escape)
-    expect(app.frame()).toContain('Council agent')
-    await app.press(keys.enter)
-    expect(app.frame()).toContain('How many reviewers')
-    expect(app.frame()).toContain('› 2')
+    await app.press(keys.down, keys.down, keys.enter)
+    await app.waitForStep('Council agent')
+    expect(app.frame()).toContain('Scope         entire codebase on aaaaaaa, uncommitted included (1 file')
   })
 
   it('stays on the scope step when there is nothing to review', async () => {
     const app = await startApp({ git: fakeGitRepository({ listChangedFiles: async () => [] }) })
-    await app.press(...toCouncil)
+    await app.press(keys.enter, keys.enter)
+    await app.waitForStep('Review scope')
+    await app.press(keys.enter)
+    await app.waitForText('There are no uncommitted changes to review.')
 
-    expect(app.frame()).toContain('There are no uncommitted changes to review.')
-    expect(app.frame()).toContain('Review scope')
+    expect(app.frame()).toMatch(stepTitle('Review scope'))
   })
 
-  it('pastes the clipboard into the prompt with Ctrl+V', async () => {
+  it('takes a commit hash typed by hand, keeping a wrong one for correction', async () => {
     const app = await startApp()
-    const councilColumns = [keys.enter]
-    // the count question, then the reviewer
-    const oneReviewer = [keys.enter, keys.enter]
-    await app.press(...toCouncil, ...councilColumns, ...oneReviewer, 'Context: ', keys.ctrlV)
+    await app.press(keys.enter, keys.enter)
+    await app.waitForStep('Review scope')
+    await app.press(keys.down, keys.enter)
+    await app.waitForText('Changes after this commit, uncommitted included:')
 
-    expect(app.frame()).toContain('Context: Pasted line 1')
-    expect(app.frame()).toContain('Pasted line 2')
+    await app.press('bbbb', keys.enter)
+    await app.waitForText('Commit "bbbb" was not found or is ambiguous.')
+    expect(app.frame()).toContain('Changes after this commit')
+    expect(app.frame()).toMatch(/^ bbbb/m)
+
+    // Esc leaves the hash for the list of scope kinds, still on this step
+    await app.press(keys.escape)
+    expect(app.frame()).toMatch(stepTitle('Review scope'))
+    expect(app.frame()).toContain('Entire codebase')
+    expect(app.frame()).not.toContain('Changes after this commit')
+
+    await app.press(keys.down, keys.enter)
+    await app.waitForText('Changes after this commit')
+    await app.press(keys.backspace, keys.backspace, keys.backspace, keys.backspace, 'aaaa', keys.enter)
+    await app.waitForStep('Council agent')
+    expect(app.frame()).toContain('Scope         changes after aaaaaaa Add checkout form')
+  })
+})
+
+describe.concurrent('App reviewers step', () => {
+  it('shows the reviewer hints', async () => {
+    const app = await startAtCouncil()
+    await app.press(keys.enter)
+    await app.waitForStep('Reviewer 1')
+
+    expect(app.frame()).toContain('↑↓ row · ←→ column · Enter next · Ctrl+D confirm · Esc back')
+    expect(app.frame()).not.toContain('How many reviewers')
+  })
+
+  it('confirms only the reviewers accepted with Enter', async () => {
+    const app = await startAtCouncil()
+    await app.press(keys.enter)
+    await app.waitForStep('Reviewer 1')
+
+    await app.press(keys.enter, keys.enter)
+    expect(app.frame()).toMatch(stepTitle('Reviewer 3'))
+    await app.press(keys.ctrlD)
+    await app.waitForStep('Review prompt')
+    expect(app.frame()).toMatch(fieldLine('Reviewers', '2'))
+  })
+
+  it('ignores Ctrl+D until a reviewer is accepted', async () => {
+    const app = await startAtCouncil()
+    await app.press(keys.enter)
+    await app.waitForStep('Reviewer 1')
+
+    await app.press(keys.ctrlD)
+    expect(app.frame()).toMatch(stepTitle('Reviewer 1'))
+
+    await app.press(keys.enter, keys.ctrlD)
+    await app.waitForStep('Review prompt')
+    expect(app.frame()).toMatch(fieldLine('Reviewers', '1'))
+  })
+
+  it('opens each next reviewer with a fresh choice', async () => {
+    const app = await startAtCouncil()
+    await app.press(keys.enter)
+    await app.waitForStep('Reviewer 1')
+    // → to the model column, a model without efforts
+    await app.press(keys.right, keys.down, keys.enter)
+
+    expect(app.frame()).toMatch(stepTitle('Reviewer 2'))
+    expect(app.frame()).toContain('Codex • codex-small • default • code')
+    // focus on the left column, first model, its default effort
+    expect(app.frame()).toContain('› Provider')
+    expect(app.frame()).toContain('› codex-large')
+    expect(app.frame()).toContain('› medium')
+  })
+
+  it('drops the draft and reopens the last accepted reviewer on Esc', async () => {
+    const app = await startAtCouncil()
+    await app.press(keys.enter)
+    await app.waitForStep('Reviewer 1')
+    await app.press(keys.right, keys.down, keys.enter)
+    expect(app.frame()).toMatch(stepTitle('Reviewer 2'))
+
+    await app.press(keys.escape)
+    expect(app.frame()).toMatch(stepTitle('Reviewer 1'))
+    expect(app.frame()).toContain('› codex-small')
+
+    // with nothing accepted, Esc goes to the council and the draft waits there
+    await app.press(keys.escape)
+    await app.waitForStep('Council agent')
+    await app.press(keys.enter)
+    await app.waitForStep('Reviewer 1')
+    expect(app.frame()).toContain('› codex-small')
+    await app.press(keys.enter, keys.ctrlD)
+    await app.waitForStep('Review prompt')
+    expect(app.frame()).toMatch(fieldLine('Reviewers', '1'))
+  })
+
+  it('keeps every accepted reviewer when going back from the prompt', async () => {
+    const app = await startAtCouncil()
+    await app.press(keys.enter)
+    await app.waitForStep('Reviewer 1')
+    // two reviewers: the first with codex-small, the second with ui-ux
+    await app.press(keys.right, keys.down, keys.enter)
+    await app.press(keys.right, keys.right, keys.right, keys.down, keys.enter, keys.ctrlD)
+    await app.waitForStep('Review prompt')
+    expect(app.frame()).toMatch(fieldLine('Reviewers', '2'))
+
+    await app.press(keys.escape)
+    await app.waitForStep('Reviewer 3')
+    expect(app.frame()).toContain('Codex • codex-small • default • code')
+    expect(app.frame()).toContain('Codex • codex-large • medium  • ui-ux')
+    await app.press(keys.ctrlD)
+    await app.waitForStep('Review prompt')
+    expect(app.frame()).toMatch(fieldLine('Reviewers', '2'))
+
+    // further Esc presses reopen the accepted reviewers one by one
+    await app.press(keys.escape)
+    await app.waitForStep('Reviewer 3')
+    await app.press(keys.escape)
+    expect(app.frame()).toMatch(stepTitle('Reviewer 2'))
+    expect(app.frame()).toContain('› ui-ux')
+    await app.press(keys.escape)
+    expect(app.frame()).toMatch(stepTitle('Reviewer 1'))
+    expect(app.frame()).toContain('› codex-small')
+  })
+
+  it('keeps edited reviewer choices when escaping to the council before accepting', async () => {
+    const app = await startAtCouncil()
+    await app.press(keys.enter)
+    await app.waitForStep('Reviewer 1')
+    await app.press(keys.right, keys.down, keys.escape)
+    await app.waitForStep('Council agent')
+
+    await app.press(keys.enter)
+    await app.waitForStep('Reviewer 1')
+    expect(app.frame()).toContain('› codex-small')
+    await app.press(keys.enter, keys.ctrlD)
+    await app.waitForStep('Review prompt')
+    expect(app.frame()).toMatch(fieldLine('Reviewers', '1'))
+  })
+
+  it('stops at ten accepted reviewers and says so', async () => {
+    const app = await startAtCouncil()
+    await app.press(keys.enter)
+    await app.waitForStep('Reviewer 1')
+    for (let index = 0; index < 10; index += 1) {
+      await app.press(keys.enter)
+    }
+    expect(app.frame()).toContain('Maximum 10 reviewers')
+    expect(app.frame()).toMatch(stepTitle('Reviewers'))
+    await app.press(keys.enter)
+    expect(app.frame()).toMatch(stepTitle('Reviewers'))
+
+    await app.press(keys.escape)
+    expect(app.frame()).toMatch(stepTitle('Reviewer 10'))
+    await app.press(keys.enter)
+    expect(app.frame()).toContain('Maximum 10 reviewers')
+    await app.press(keys.ctrlD)
+    await app.waitForStep('Review prompt')
+    expect(app.frame()).toMatch(fieldLine('Reviewers', '10'))
+
+    await app.press(keys.escape)
+    await app.waitForText('Maximum 10 reviewers')
+  })
+})
+
+describe.concurrent('App prompt step', () => {
+  it('pastes the clipboard with Ctrl+V as separate lines', async () => {
+    const launches: AgentLaunch[] = []
+    const app = await startAtCouncil({ review: fakeReview(launches) })
+    await toPrompt(app)
+    await app.press('Context: ', keys.ctrlV)
+    await app.waitForText('Pasted line 2')
+    expect(app.frame()).toMatch(/│ Context: Pasted line 1 +│/)
+
+    await app.press(keys.ctrlD)
+    await app.waitForStep('Summary')
+    await app.press(keys.enter)
+    await app.waitForText('q quit')
+    const councilLaunch = launches.find((launch) => launch.message.startsWith('# Council session'))
+    expect(councilLaunch?.message).toContain('## Review prompt\nContext: Pasted line 1\nPasted line 2')
+  })
+
+  it('leaves the prompt as it is when the clipboard has no text', async () => {
+    const app = await startAtCouncil({ readClipboard: async () => null })
+    await toPrompt(app)
+    await app.press('Context', keys.ctrlV, keys.ctrlD)
+    await app.waitForStep('Summary')
+
+    expect(app.frame()).toMatch(fieldLine('Prompt', 'Context'))
+  })
+
+  it('removes the last character with Backspace', async () => {
+    const app = await startAtCouncil()
+    await toPrompt(app)
+    await app.press('VAX', keys.backspace, 'T', keys.ctrlD)
+    await app.waitForStep('Summary')
+
+    expect(app.frame()).toMatch(fieldLine('Prompt', 'VAT'))
+  })
+
+  it('shows only the first three lines of a long prompt in the summary', async () => {
+    const app = await startAtCouncil()
+    await toPrompt(app)
+    await app.press('One', keys.enter, 'Two', keys.enter, 'Three', keys.enter, 'Four', keys.ctrlD)
+    await app.waitForStep('Summary')
+
+    expect(app.frame()).toMatch(fieldLine('Prompt', 'One'))
+    expect(app.frame()).toMatch(/^ +Two$/m)
+    expect(app.frame()).toMatch(/^ +Three\.\.\.$/m)
+    expect(app.frame()).not.toContain('Four')
   })
 
   it('accepts an empty prompt and reviews the code alone', async () => {
     const launches: AgentLaunch[] = []
-    const app = await startApp({ review: fakeReview(launches) })
-    const councilColumns = [keys.enter]
-    // the count question, then the reviewer
-    const oneReviewer = [keys.enter, keys.enter]
-    await app.press(...toCouncil, ...councilColumns, ...oneReviewer, keys.ctrlD)
+    const app = await startAtCouncil({ review: fakeReview(launches) })
+    await toPrompt(app)
+    await app.press(keys.ctrlD)
+    await app.waitForStep('Summary')
 
-    expect(app.frame()).toContain('Summary')
     expect(app.frame()).toContain('Prompt        none, review of the code alone')
     await app.press(keys.enter)
     await app.waitForText('q quit')
     expect(launches[0]?.message).toContain('## Review prompt\nNone given. Review the change on its own merits')
+  })
+})
+
+describe.concurrent('App summary step', () => {
+  it('names a detached HEAD and a clean working tree', async () => {
+    const git = fakeGitRepository({
+      readState: async () => ({ root: '/repo', branch: null, head: headCommit, hasChanges: false }),
+    })
+    const app = await startAtCouncil({ git })
+    await toPrompt(app)
+    await app.press(keys.ctrlD)
+    await app.waitForStep('Summary')
+
+    expect(app.frame()).toMatch(fieldLine('Branch', 'detached HEAD'))
+    expect(app.frame()).toMatch(fieldLine('Working tree', 'currently clean'))
+  })
+})
+
+describe.concurrent('App run', () => {
+  const toRun = async (app: Session): Promise<void> => {
+    await toPrompt(app)
+    await app.press(keys.ctrlD)
+    await app.waitForStep('Summary')
+    await app.press(keys.enter)
+  }
+
+  it('ends as failed when an agent cannot be started', async () => {
+    const app = await startAtCouncil({
+      review: {
+        ...fakeReview(),
+        runAgent: async () => {
+          throw new Error('spawn codex ENOENT')
+        },
+      },
+    })
+    await toRun(app)
+    await app.waitFor('the app to exit', app.hasExited)
+
+    expect(app.outcomes).toEqual([{ kind: 'failed', error: 'spawn codex ENOENT' }])
+  })
+
+  it('ends without a report when every reviewer fails', async () => {
+    const app = await startAtCouncil({
+      review: { ...fakeReview(), runAgent: async () => ({ ok: false, error: 'quota exceeded', sessionId: null }) },
+    })
+    await toRun(app)
+    await app.waitFor('the app to exit', app.hasExited)
+
+    expect(app.outcomes).toEqual([{ kind: 'finished', result: expect.objectContaining({ kind: 'reviewers-failed' }) }])
+    expect(app.frame()).toMatch(/code +✘ failed · quota exceeded/)
+    expect(app.frame()).toMatch(/council +✘ failed · no reviewer reports/)
+    expect(app.frames().some((frame) => frame.includes('q quit'))).toBe(false)
   })
 })

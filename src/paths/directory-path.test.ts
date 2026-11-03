@@ -34,6 +34,15 @@ describe('resolveInputPath', () => {
     expect(resolveInputPath('~/code', '/cwd', '/Users/me')).toBe('/Users/me/code')
     expect(resolveInputPath('../repo', '/work/app', '/Users/me')).toBe('/work/repo')
   })
+
+  it('expands a bare ~ to the home directory and keeps absolute paths', () => {
+    expect(resolveInputPath('~', '/cwd', '/Users/me')).toBe('/Users/me')
+    expect(resolveInputPath('"/Users/me/My Projects"', '/cwd', '/Users/me')).toBe('/Users/me/My Projects')
+  })
+
+  it('does not expand ~ inside a name', () => {
+    expect(resolveInputPath('~backup/x', '/cwd', '/Users/me')).toBe('/cwd/~backup/x')
+  })
 })
 
 describe('completeDirectory', () => {
@@ -55,6 +64,10 @@ describe('completeDirectory', () => {
   it('keeps the input when nothing matches or the parent does not exist', async () => {
     expect(await completeDirectory('projects/zzz', root, '/home')).toEqual({ value: 'projects/zzz', candidates: [] })
     expect(await completeDirectory('/no/such/dir/x', root, '/home')).toEqual({ value: '/no/such/dir/x', candidates: [] })
+  })
+
+  it('turns a bare ~ into the home directory prefix', async () => {
+    expect(await completeDirectory('~', '/elsewhere', root)).toEqual({ value: '~/', candidates: [] })
   })
 
   it('expands ~ in the parent directory', async () => {

@@ -7,7 +7,7 @@ import { waitingProgress } from '../execution/agent-progress.js'
 import type { AgentRunResult } from '../execution/run-agent-process.js'
 import { headCommit } from '../test-support/fakes.js'
 import type { ReviewRunDependencies } from './run-review.js'
-import { countFindings, numberReviewers, runReview, trimToReport } from './run-review.js'
+import { countFindings, numberReviewers, proseLines, runReview, trimToReport } from './run-review.js'
 
 const codexLow: AgentConfiguration = { provider: 'codex', model: 'gpt-6-luna', modelLabel: 'GPT-6-Luna', effort: 'low' }
 const claudeLow: AgentConfiguration = { provider: 'claude', model: 'haiku', modelLabel: 'Haiku 5.5', effort: 'low' }
@@ -68,13 +68,25 @@ describe('numberReviewers', () => {
   })
 })
 
+describe('proseLines', () => {
+  it('leaves out fenced code blocks of both fence styles, keeping the original line numbers', () => {
+    const text = ['# Review', '```sh', '# list files', '```', '### One', '  ~~~md', '### Not a finding', '  ~~~', '### Two'].join('\n')
+
+    expect(proseLines(text)).toEqual([
+      { line: '# Review', index: 0 },
+      { line: '### One', index: 4 },
+      { line: '### Two', index: 8 },
+    ])
+  })
+
+  it('treats everything after an unclosed fence as code', () => {
+    expect(proseLines('# Review\n```\n### Inside').map(({ line }) => line)).toEqual(['# Review'])
+  })
+})
+
 describe('trimToReport', () => {
   it('drops remarks before the report title', () => {
     expect(trimToReport('All findings confirmed.\n\n# Przegląd\n## Podsumowanie')).toBe('# Przegląd\n## Podsumowanie')
-  })
-
-  it('takes the title outside code blocks, not a comment inside one', () => {
-    expect(trimToReport('Checked:\n```sh\n# list files\nls\n```\n# Review\n### One')).toBe('# Review\n### One')
   })
 
   it('keeps a report that starts with its title or has none', () => {
@@ -87,10 +99,6 @@ describe('countFindings', () => {
   it('counts level-3 headings and nothing else', () => {
     expect(countFindings('# Review\n## Findings\n### One\n- x\n### Two\n## Open questions')).toBe(2)
     expect(countFindings('No findings.')).toBe(0)
-  })
-
-  it('ignores headings inside code blocks', () => {
-    expect(countFindings('# Review\n### One\n```md\n### Not a finding\n```\n~~~\n### Nor this\n~~~\n### Two')).toBe(2)
   })
 })
 
@@ -199,18 +207,54 @@ describe('runReview', () => {
     expect(run.cleanup).toHaveBeenCalledOnce()
   })
 
-  it('reports a cancelled run and still cleans up', async () => {
+  it('skips the council after a cancel while the reviewers ran, even when they succeeded', async () => {
     const controller = new AbortController()
-    const run = setup(() => {
-      controller.abort()
+    const run = setup((launch) => {
+      if (!isCouncil(launch)) {
+        controller.abort()
+      }
 
-      return { ok: false, error: 'Cancelled', sessionId: null }
+      return { ok: true, report: '### Finding', sessionId: 'r' }
     })
 
     const result = await runReview(session, run.dependencies, run.onProgress, controller.signal)
 
     expect(result).toEqual({ kind: 'cancelled' })
+    expect(run.launches.filter((launch) => !isCouncil(launch))).toHaveLength(2)
     expect(run.launches.some(isCouncil)).toBe(false)
     expect(run.cleanup).toHaveBeenCalledOnce()
+  })
+
+  it('reports a cancel during the council as cancelled, even when the council returns a report', async () => {
+    const controller = new AbortController()
+    const run = setup((launch) => {
+      if (isCouncil(launch)) {
+        controller.abort()
+
+        return { ok: true, report: '# Review\n### Finding', sessionId: 'c' }
+      }
+
+      return { ok: true, report: '### Finding', sessionId: 'r' }
+    })
+
+    const result = await runReview(session, run.dependencies, run.onProgress, controller.signal)
+
+    expect(result).toEqual({ kind: 'cancelled' })
+    expect(run.launches.some(isCouncil)).toBe(true)
+    expect(run.cleanup).toHaveBeenCalledOnce()
+  })
+
+  it('fails without starting agents when the workspace cannot be prepared', async () => {
+    const run = setup(() => ({ ok: true, report: '# Review', sessionId: null }))
+    const dependencies: ReviewRunDependencies = {
+      ...run.dependencies,
+      prepareWorkspace: async () => {
+        throw new Error('Could not read the diff from Git')
+      },
+    }
+
+    await expect(runReview(session, dependencies, run.onProgress)).rejects.toThrow('Could not read the diff from Git')
+    expect(run.launches).toEqual([])
+    expect(run.progress.size).toBe(0)
   })
 })

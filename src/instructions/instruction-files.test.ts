@@ -1,3 +1,6 @@
+import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 import {
@@ -5,6 +8,7 @@ import {
   councilInstructionFiles,
   findMissingInstructionFiles,
   instructionsDirectory,
+  readInstructions,
   reviewerInstructionFiles,
 } from './instruction-files.js'
 
@@ -26,15 +30,36 @@ describe('instruction files', () => {
     ])
   })
 
-  it('lists every file once', () => {
-    expect(allInstructionFiles()).toHaveLength(9)
-  })
-
   it('ships every instruction file in docs/', async () => {
     expect(await findMissingInstructionFiles(instructionsDirectory)).toEqual([])
   })
 
-  it('reports files missing from a directory', async () => {
-    expect(await findMissingInstructionFiles('/no/such/docs')).toHaveLength(9)
+  it('reports every file as missing from a directory without them', async () => {
+    expect(await findMissingInstructionFiles('/no/such/docs')).toEqual(allInstructionFiles())
+  })
+
+  it('covers the role and variant files of every review type, each once', () => {
+    const files = allInstructionFiles()
+
+    expect(new Set(files).size).toBe(files.length)
+    expect(files).toEqual(
+      expect.arrayContaining([
+        ...reviewerInstructionFiles('ui-ux'),
+        ...councilInstructionFiles(['code', 'security', 'ui-ux']),
+      ]),
+    )
+  })
+
+  it('joins the files in order, trimmed and separated', async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), 'instructions-'))
+    await writeFile(path.join(directory, 'first.md'), '\n# First\n\n')
+    await writeFile(path.join(directory, 'second.md'), '# Second\n')
+
+    try {
+      expect(await readInstructions(directory, ['second.md', 'first.md'])).toBe('# Second\n\n---\n\n# First')
+      await expect(readInstructions(directory, ['missing.md'])).rejects.toThrow()
+    } finally {
+      await rm(directory, { recursive: true, force: true })
+    }
   })
 })

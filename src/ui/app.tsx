@@ -27,6 +27,7 @@ import { LanguageStep } from './steps/language-step.js'
 import { PreflightStep, RequirementsLine } from './steps/preflight-step.js'
 import { ProjectStep } from './steps/project-step.js'
 import { PromptStep } from './steps/prompt-step.js'
+import type { ReviewerSelection } from './steps/reviewers-step.js'
 import { ReviewersStep } from './steps/reviewers-step.js'
 import type { RunOutcome } from './steps/run-screen.js'
 import { RunScreen } from './steps/run-screen.js'
@@ -48,12 +49,11 @@ export type AppServices = {
   homeDirectory: string
 }
 
-// Values given as CLI options; each one skips its step.
+// CLI presets skip their corresponding steps.
 export type AppPresets = {
   language: ReportLanguage | null
   directory: string | null
   scope: ScopeRequest | null
-  reviewerCount: number | null
 }
 
 export type WizardOutcome = RunOutcome | { kind: 'cancelled' } | { kind: 'blocked' }
@@ -70,8 +70,6 @@ type AppProps = {
 
 type WizardState = {
   step: WizardStep
-  // true when the current step was reached with Esc from a later one
-  isGoingBack: boolean
   skipped: WizardStep[]
   checks: PreflightCheck[]
   models: CatalogModel[]
@@ -80,7 +78,7 @@ type WizardState = {
   repository: RepositoryState | null
   scope: ReviewScope | null
   council: AgentConfiguration | null
-  reviewers: ReviewerAssignment[]
+  reviewers: ReviewerSelection
   prompt: string
   // set once the review starts; the wizard is done then
   running: ReviewSessionDraft | null
@@ -99,7 +97,7 @@ const buildSessionDraft = (state: WizardState, timeoutMinutes: number): ReviewSe
     },
     scope: state.scope,
     council: state.council,
-    reviewers: state.reviewers,
+    reviewers: state.reviewers.accepted,
     prompt: state.prompt,
     timeoutMinutes,
   })
@@ -126,7 +124,7 @@ const answersBefore = (state: WizardState): WizardAnswers => {
     repository: isBefore('project') ? state.repository : null,
     scope: isBefore('scope') ? state.scope : null,
     council: isBefore('council') ? state.council : null,
-    reviewers: isBefore('reviewers') ? state.reviewers : null,
+    reviewers: isBefore('reviewers') ? state.reviewers.accepted : null,
     prompt: isBefore('prompt') ? state.prompt : null,
   }
 }
@@ -141,7 +139,6 @@ export const App = ({ title, services, presets, timeoutMinutes, onFinish }: AppP
   const { exit } = useApp()
   const [state, setState] = useState<WizardState>({
     step: 'preflight',
-    isGoingBack: false,
     skipped: presetSkips(presets),
     checks: [],
     models: [],
@@ -150,7 +147,7 @@ export const App = ({ title, services, presets, timeoutMinutes, onFinish }: AppP
     repository: null,
     scope: null,
     council: null,
-    reviewers: [],
+    reviewers: { accepted: [], draft: null },
     prompt: '',
     running: null,
   })
@@ -164,14 +161,13 @@ export const App = ({ title, services, presets, timeoutMinutes, onFinish }: AppP
       ...previous,
       ...patch,
       step: nextStep(previous.step, previous.skipped),
-      isGoingBack: false,
     }))
   }
   const previous = previousStep(state.step, state.skipped)
   const back =
     previous === null
       ? undefined
-      : (): void => setState((current) => ({ ...current, step: previous, isGoingBack: true }))
+      : (): void => setState((current) => ({ ...current, step: previous }))
   // A preset step that was skipped is shown when its value turned out invalid.
   const isAutoSubmit = state.step === 'project' && state.skipped.includes('project')
 
@@ -234,9 +230,8 @@ export const App = ({ title, services, presets, timeoutMinutes, onFinish }: AppP
           <ReviewersStep
             models={state.models}
             value={state.reviewers}
-            resumeAtLast={state.isGoingBack}
-            presetCount={presets.reviewerCount}
-            onSubmit={(reviewers) => complete({ reviewers })}
+            onChange={(reviewers) => setState((current) => ({ ...current, reviewers }))}
+            onSubmit={(accepted) => complete({ reviewers: { accepted, draft: null } })}
             onBack={back}
           />
         )

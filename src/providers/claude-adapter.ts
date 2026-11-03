@@ -67,7 +67,6 @@ export const createClaudeAdapter = (run: RunCommand, startProcess: StartJsonLine
       command: 'claude',
       loginStatusArgs: ['auth', 'status'],
       installFix: 'Install Claude Code and make sure `claude` is on PATH, then run this app again.',
-      loginFix: 'Run `claude` in a terminal and sign in with `/login`, then run this app again.',
     }),
 
   // Catalog from the initialize control response; no user message is sent, so no model is called.

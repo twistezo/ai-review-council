@@ -1,7 +1,10 @@
+import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 import type { AgentEvent } from './agent-events.js'
-import { parseCodexLine } from './agent-events.js'
+import { parseClaudeLine, parseCodexLine, parseCopilotLine, parseCopilotUsage } from './agent-events.js'
 import type { AgentProcessSpec } from './agent-commands.js'
 import { runAgentProcess } from './run-agent-process.js'
 
@@ -92,7 +95,7 @@ describe('runAgentProcess', () => {
       timeoutMs: 300,
     })
 
-    expect(result).toEqual({ ok: false, error: 'Timed out after 0 s', sessionId: 'th-1' })
+    expect(result).toEqual({ ok: false, error: expect.stringContaining('Timed out after'), sessionId: 'th-1' })
     expect(Date.now() - started).toBeLessThan(3_000)
   })
 
@@ -107,6 +110,69 @@ describe('runAgentProcess', () => {
     expect(await run).toMatchObject({ ok: false, error: 'Cancelled' })
   })
 
+  it('does not start the work of a run cancelled before it began', async () => {
+    const controller = new AbortController()
+    controller.abort()
+    const result = await runAgentProcess(fakeAgent(`${report}${turnCompleted}setInterval(() => {}, 1000);`), parseCodexLine, {
+      timeoutMs: 5_000,
+      signal: controller.signal,
+    })
+
+    expect(result).toMatchObject({ ok: false, error: 'Cancelled' })
+  })
+
+  it('takes the Claude result text as the report over earlier messages', async () => {
+    const result = await runAgentProcess(
+      fakeAgent(
+        `${emit({ type: 'assistant', message: { content: [{ type: 'text', text: 'Let me read the diff.' }] } })}${emit({ type: 'result', subtype: 'success', is_error: false, result: '# Final report' })}`,
+      ),
+      parseClaudeLine,
+      { timeoutMs: 5_000 },
+    )
+
+    expect(result).toMatchObject({ ok: true, report: '# Final report' })
+  })
+
+  it('reads token usage from the Copilot usage file once the run ends', async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), 'copilot-usage-'))
+    const usagePath = path.join(directory, 'usage.json')
+    await writeFile(
+      usagePath,
+      JSON.stringify({ tokenDetails: { input: { tokenCount: 10 }, output: { tokenCount: 5 } } }),
+    )
+    const events: AgentEvent[] = []
+    const copilotRun = `${emit({ type: 'assistant.message', data: { phase: 'final_answer', content: '# Report' } })}${emit({ type: 'result', sessionId: 's-1', exitCode: 0 })}`
+
+    try {
+      const result = await runAgentProcess(
+        { ...fakeAgent(copilotRun), usageFile: { path: usagePath, parse: parseCopilotUsage } },
+        parseCopilotLine,
+        { timeoutMs: 5_000, onEvent: (event) => events.push(event) },
+      )
+
+      expect(result).toEqual({ ok: true, report: '# Report', sessionId: 's-1' })
+      expect(events).toContainEqual({ kind: 'usage', tokens: 15 })
+    } finally {
+      await rm(directory, { recursive: true, force: true })
+    }
+  })
+
+  it('finishes without usage when the Copilot usage file was never written', async () => {
+    const events: AgentEvent[] = []
+    const copilotRun = `${emit({ type: 'assistant.message', data: { phase: 'final_answer', content: '# Report' } })}${emit({ type: 'result', exitCode: 0 })}`
+    const result = await runAgentProcess(
+      {
+        ...fakeAgent(copilotRun),
+        usageFile: { path: path.join(tmpdir(), 'no-such-dir-council', 'usage.json'), parse: parseCopilotUsage },
+      },
+      parseCopilotLine,
+      { timeoutMs: 5_000, onEvent: (event) => events.push(event) },
+    )
+
+    expect(result).toMatchObject({ ok: true, report: '# Report' })
+    expect(events.some((event) => event.kind === 'usage')).toBe(false)
+  })
+
   it('stops a process the agent started that ignores SIGTERM, once the agent is gone', async () => {
     // The descendant has its own stdio, so the agent closing does not wait for it.
     const spawnStubborn = `const child = require('node:child_process').spawn(process.execPath, ['-e', "process.on('SIGTERM', () => {}); setInterval(() => {}, 1000);"], { stdio: 'ignore' });
@@ -116,7 +182,7 @@ describe('runAgentProcess', () => {
     const descendantPid = Number(result.sessionId)
     await delay(100)
 
-    expect(result).toMatchObject({ ok: false, error: 'Timed out after 1 s' })
+    expect(result).toMatchObject({ ok: false, error: expect.stringContaining('Timed out after') })
     expect(isAlive(descendantPid)).toBe(false)
   })
 

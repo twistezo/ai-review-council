@@ -46,6 +46,30 @@ describe('parseClaudeLine', () => {
     ])
   })
 
+  it('treats a success result flagged as an error as a failure', () => {
+    expect(parseClaudeLine(line({ type: 'result', subtype: 'success', is_error: true, result: 'API Error: 529' }))).toEqual(
+      [{ kind: 'error', message: 'Claude Code ended with success: API Error: 529' }],
+    )
+  })
+
+  it('appends the result text to an unsuccessful result', () => {
+    expect(
+      parseClaudeLine(line({ type: 'result', subtype: 'error_during_execution', is_error: true, result: 'Credit balance is too low' })),
+    ).toEqual([{ kind: 'error', message: 'Claude Code ended with error_during_execution: Credit balance is too low' }])
+  })
+
+  it('completes without text when the result carries none', () => {
+    expect(parseClaudeLine(line({ type: 'result', subtype: 'success' }))).toEqual([{ kind: 'completed', text: null }])
+  })
+
+  it('skips blank text parts and names a tool call without input', () => {
+    expect(
+      parseClaudeLine(
+        line({ type: 'assistant', message: { content: [{ type: 'text', text: '  \n' }, { type: 'tool_use', name: 'Glob' }] } }),
+      ),
+    ).toEqual([{ kind: 'read', target: 'Glob' }])
+  })
+
   it('counts fresh input, cache writes, cache reads and output as used tokens', () => {
     const usage = {
       input_tokens: 2,
@@ -111,6 +135,15 @@ describe('parseCodexLine', () => {
     ])
   })
 
+  it('completes a turn without usage when Codex reports none', () => {
+    expect(parseCodexLine(line({ type: 'turn.completed' }))).toEqual([{ kind: 'completed', text: null }])
+  })
+
+  it('ignores blank agent messages and other started items', () => {
+    expect(parseCodexLine(line({ type: 'item.completed', item: { type: 'agent_message', text: '  ' } }))).toEqual([])
+    expect(parseCodexLine(line({ type: 'item.started', item: { type: 'reasoning' } }))).toEqual([])
+  })
+
   it('ignores warning items', () => {
     expect(parseCodexLine(line({ type: 'item.completed', item: { type: 'error', message: 'feature off' } }))).toEqual(
       [],
@@ -173,8 +206,20 @@ describe('parseCopilotLine', () => {
   it('reports a failed CLI result with its session', () => {
     expect(parseCopilotLine(line({ type: 'result', sessionId: 's-1', exitCode: 1 }))).toEqual([
       { kind: 'session', sessionId: 's-1' },
-      { kind: 'error', message: 'Copilot exited with code 1. Check Copilot login and usage limits.' },
+      { kind: 'error', message: 'Copilot exited with code 1. Check Copilot usage limits.' },
     ])
+  })
+
+  it('reports a CLI result without an exit code as a failure', () => {
+    expect(parseCopilotLine(line({ type: 'result' }))).toEqual([
+      { kind: 'error', message: 'Copilot exited with code unknown. Check Copilot usage limits.' },
+    ])
+  })
+
+  it('does not take a blank final answer as the report', () => {
+    expect(parseCopilotLine(line({ type: 'assistant.message', data: { phase: 'final_answer', content: ' ' } }))).toEqual(
+      [],
+    )
   })
 
   it('ignores lines that are not JSON or not events', () => {
@@ -218,6 +263,19 @@ describe('Copilot session token totals', () => {
       ),
     ).toEqual([{ kind: 'usage', tokens: 99829 }])
   })
+
+  it('counts input and output alone when no cache was used', () => {
+    expect(
+      parseCopilotUsage(JSON.stringify({ tokenDetails: { input: { tokenCount: 10 }, output: { tokenCount: 5 } } })),
+    ).toEqual([{ kind: 'usage', tokens: 15 }])
+  })
+
+  it('rejects negative token counts as unknown usage', () => {
+    expect(
+      parseCopilotUsage(JSON.stringify({ tokenDetails: { input: { tokenCount: -1 }, output: { tokenCount: 5 } } })),
+    ).toEqual([])
+  })
+
   it('keeps unknown usage unknown rather than inventing zero', () => {
     expect(parseCopilotUsage('{}')).toEqual([])
     expect(parseCopilotUsage('incomplete')).toEqual([])

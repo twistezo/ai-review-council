@@ -201,7 +201,7 @@ export const parseCopilotLine: ParseAgentLine = (line) => {
           ? { kind: 'completed', text: null }
           : {
               kind: 'error',
-              message: `Copilot exited with code ${exitCode ?? 'unknown'}. Check Copilot login and usage limits.`,
+              message: `Copilot exited with code ${exitCode ?? 'unknown'}. Check Copilot usage limits.`,
             },
       ]
     default:

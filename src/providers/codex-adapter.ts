@@ -87,7 +87,6 @@ export const createCodexAdapter = (
       command: 'codex',
       loginStatusArgs: ['login', 'status'],
       installFix: 'Install the Codex CLI and make sure `codex` is on PATH, then run this app again.',
-      loginFix: 'Run `codex login` in a terminal, then run this app again.',
     }),
 
   // Catalog over the local App Server protocol; no prompt is sent to a model.
