@@ -7,6 +7,7 @@ import { completeDirectory, isDirectory, resolveInputPath } from '../../paths/di
 import { ErrorText, StepFrame } from '../components/step-frame.js'
 import { TextInput } from '../components/text-input.js'
 import { theme } from '../theme.js'
+import { useIsMounted } from '../use-is-mounted.js'
 
 type ProjectStepProps = {
   git: GitRepository
@@ -32,7 +33,12 @@ const resolveRepository = async (git: GitRepository, directory: string): Promise
   if (root === null) {
     return { ok: false, error: `Not inside a Git repository: ${directory}` }
   }
-  const repository = await git.readState(root)
+  let repository: RepositoryState
+  try {
+    repository = await git.readState(root)
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : String(error) }
+  }
   if (repository.head === null) {
     return { ok: false, error: 'The repository has no commits, so there is nothing to compare against.' }
   }
@@ -54,11 +60,15 @@ export const ProjectStep = ({
   const [candidates, setCandidates] = useState<string[]>([])
   const [error, setError] = useState<string | null>(null)
   const [isChecking, setIsChecking] = useState(autoSubmit)
+  const isMounted = useIsMounted()
 
   const submit = async (path: string): Promise<boolean> => {
     setIsChecking(true)
     setCandidates([])
     const result = await resolveRepository(git, resolveInputPath(path, cwd, homeDirectory))
+    if (!isMounted()) {
+      return false
+    }
     setIsChecking(false)
     if (!result.ok) {
       setError(result.error)
@@ -73,7 +83,7 @@ export const ProjectStep = ({
   useEffect(() => {
     if (autoSubmit) {
       void submit(initialPath).then((succeeded) => {
-        if (!succeeded) {
+        if (!succeeded && isMounted()) {
           onAutoSubmitFailed()
         }
       })

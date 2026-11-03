@@ -319,6 +319,18 @@ describe('checkCliStatus', () => {
     expect(status.problem).toBe('`codex --version` failed: broken install')
     expect(status.fix).toBe('install')
   })
+
+  it('names the exit code when a failing CLI prints nothing', async () => {
+    const run = fakeRunCommand({ 'codex --version': commandResult({ exitCode: 2 }) })
+
+    expect((await checkCliStatus(run, check)).problem).toBe('`codex --version` failed with exit code 2')
+  })
+
+  it('says when the version check timed out', async () => {
+    const run = fakeRunCommand({ 'codex --version': commandResult({ exitCode: null, failure: 'timeout' }) })
+
+    expect((await checkCliStatus(run, check)).problem).toBe('`codex --version` timed out')
+  })
 })
 
 describe('createCopilotAdapter', () => {

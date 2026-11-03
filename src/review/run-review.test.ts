@@ -244,6 +244,56 @@ describe('runReview', () => {
     expect(run.cleanup).toHaveBeenCalledOnce()
   })
 
+  it('fails only the reviewer whose agent throws, and cleans up after the others finish', async () => {
+    const events: string[] = []
+    const run = setup((launch) => ({ ok: true, report: isCouncil(launch) ? '# Review' : '### Finding', sessionId: null }))
+    const dependencies: ReviewRunDependencies = {
+      ...run.dependencies,
+      runAgent: async (launch, options) => {
+        if (launch.configuration.provider === 'codex') {
+          throw new Error('codex crashed')
+        }
+        await new Promise((resolve) => setTimeout(resolve, 10))
+        events.push(isCouncil(launch) ? 'council done' : 'claude done')
+
+        return run.dependencies.runAgent(launch, options)
+      },
+      prepareWorkspace: async () => ({
+        directory: '/tmp/council-x',
+        diffPath: '/tmp/council-x/change.diff',
+        cleanup: async () => {
+          events.push('cleanup')
+        },
+      }),
+    }
+
+    const result = await runReview(session, dependencies, run.onProgress)
+
+    expect(result.kind).toBe('reported')
+    expect(events).toEqual(['claude done', 'council done', 'cleanup'])
+    expect(run.progress.get('reviewer-2')).toMatchObject({ phase: 'failed', note: 'codex crashed' })
+    expect(run.launches.find(isCouncil)?.message).toContain('This reviewer failed: codex crashed.')
+  })
+
+  it('fails the reviewer whose instructions cannot be read, without stopping the run', async () => {
+    const run = setup((launch) => ({ ok: true, report: isCouncil(launch) ? '# Review' : '### Finding', sessionId: null }))
+    const dependencies: ReviewRunDependencies = {
+      ...run.dependencies,
+      readInstructions: async (files) => {
+        if (files.includes('reviewer/security-review.md')) {
+          throw new Error('missing reviewer/security-review.md')
+        }
+
+        return files.join(' + ')
+      },
+    }
+
+    const result = await runReview(session, dependencies, run.onProgress)
+
+    expect(result.kind).toBe('reported')
+    expect(run.progress.get('reviewer-1')).toMatchObject({ phase: 'failed', note: 'missing reviewer/security-review.md' })
+  })
+
   it('fails without starting agents when the workspace cannot be prepared', async () => {
     const run = setup(() => ({ ok: true, report: '# Review', sessionId: null }))
     const dependencies: ReviewRunDependencies = {

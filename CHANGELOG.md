@@ -2,6 +2,21 @@
 
 All notable changes to this project. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## 3.0.1 - 2026-11-03
+
+### Fixed
+
+- A reviewer whose agent cannot start fails alone; the review goes on and the diff folder stays until every agent has finished.
+- A Codex error the agent recovers from, such as a reconnect, no longer discards a completed review.
+- An empty final Claude result falls back to the agent's last message instead of failing the review.
+- `Esc` from the prompt keeps the typed text.
+- `Esc` while the folder or the scope is being checked stays on the earlier step; the late result is ignored.
+- A provider or Git check that throws marks only that check as failed instead of stopping the app.
+- A working tree that `git status` cannot read is reported as an error, not as clean.
+- `--timeout` accepts plain digits only; values such as `1e1` or `0x5` are rejected.
+- A failing `--version` check names the exit code or the timeout when the CLI prints nothing.
+- The provider check shows `1 model` and leaves out an empty version.
+
 ## 3.0.0 - 2026-11-03
 
 ### Removed

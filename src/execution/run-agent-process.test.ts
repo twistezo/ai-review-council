@@ -89,13 +89,33 @@ describe('runAgentProcess', () => {
     expect(result).toMatchObject({ ok: false, error: 'Codex turn failed: rate limited' })
   })
 
+  it('keeps the report when the agent recovers from an error and completes the turn', async () => {
+    const result = await runAgentProcess(
+      fakeAgent(`${thread}${emit({ type: 'error', message: 'Reconnecting... 1/5' })}${report}${turnCompleted}`),
+      parseCodexLine,
+      { timeoutMs: 5_000 },
+    )
+
+    expect(result).toEqual({ ok: true, report: '# Report', sessionId: 'th-1' })
+  })
+
+  it('fails on an error that comes after the turn completed', async () => {
+    const result = await runAgentProcess(
+      fakeAgent(`${report}${turnCompleted}${emit({ type: 'error', message: 'stream closed' })}`),
+      parseCodexLine,
+      { timeoutMs: 5_000 },
+    )
+
+    expect(result).toMatchObject({ ok: false, error: 'Codex error: stream closed' })
+  })
+
   it('kills a run that exceeds the timeout', async () => {
     const started = Date.now()
     const result = await runAgentProcess(fakeAgent(`${thread}setInterval(() => {}, 1000);`), parseCodexLine, {
       timeoutMs: 300,
     })
 
-    expect(result).toEqual({ ok: false, error: expect.stringContaining('Timed out after'), sessionId: 'th-1' })
+    expect(result).toEqual({ ok: false, error: 'Timed out after 300 ms', sessionId: 'th-1' })
     expect(Date.now() - started).toBeLessThan(3_000)
   })
 
@@ -131,6 +151,18 @@ describe('runAgentProcess', () => {
     )
 
     expect(result).toMatchObject({ ok: true, report: '# Final report' })
+  })
+
+  it('falls back to the last message when the Claude result text is empty', async () => {
+    const result = await runAgentProcess(
+      fakeAgent(
+        `${emit({ type: 'assistant', message: { content: [{ type: 'text', text: '# Report' }] } })}${emit({ type: 'result', subtype: 'success', is_error: false, result: '' })}`,
+      ),
+      parseClaudeLine,
+      { timeoutMs: 5_000 },
+    )
+
+    expect(result).toMatchObject({ ok: true, report: '# Report' })
   })
 
   it('reads token usage from the Copilot usage file once the run ends', async () => {

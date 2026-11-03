@@ -444,12 +444,48 @@ describe.concurrent('App project step', () => {
     expect(app.frame()).not.toContain('alpha-two/')
   })
 
+  it('stays where Esc led when the repository check finishes after the user left', async () => {
+    let finishCheck = (): void => undefined
+    const git = fakeGitRepository({
+      resolveRoot: () =>
+        new Promise((resolve) => {
+          finishCheck = () => resolve('/repo')
+        }),
+    })
+    const app = await startApp({ git })
+    await app.press(keys.enter)
+    await app.waitForStep('Project folder')
+    await app.press(keys.enter)
+    await app.waitForText('Checking repository')
+    await app.press(keys.escape)
+    await app.waitForStep('Report language')
+
+    finishCheck()
+    await delay(100)
+    expect(app.frame()).toMatch(stepTitle('Report language'))
+  })
+
   it('stays on the folder step when the folder is not in a Git repository', async () => {
     const app = await startApp({ git: fakeGitRepository({ resolveRoot: async () => null }) })
     await app.press(keys.enter)
     await app.waitForStep('Project folder')
     await app.press(keys.enter)
     await app.waitForText('Not inside a Git repository')
+
+    expect(app.frame()).toMatch(stepTitle('Project folder'))
+  })
+
+  it('stays on the folder step when the working tree cannot be read', async () => {
+    const git = fakeGitRepository({
+      readState: async () => {
+        throw new Error('Could not read the working tree with `git status`.')
+      },
+    })
+    const app = await startApp({ git })
+    await app.press(keys.enter)
+    await app.waitForStep('Project folder')
+    await app.press(keys.enter)
+    await app.waitForText('Could not read the working tree')
 
     expect(app.frame()).toMatch(stepTitle('Project folder'))
   })
@@ -504,6 +540,28 @@ describe.concurrent('App scope step', () => {
     await app.press(keys.down, keys.down, keys.enter)
     await app.waitForStep('Council agent')
     expect(app.frame()).toContain('Scope         entire codebase on aaaaaaa, uncommitted included (1 file')
+  })
+
+  it('stays where Esc led when the changes finish loading after the user left', async () => {
+    let finishLoading = (): void => undefined
+    const git = fakeGitRepository({
+      listChangedFiles: () =>
+        new Promise((resolve) => {
+          finishLoading = () => resolve([{ path: 'src/checkout.ts', previousPath: null, change: 'modified' }])
+        }),
+    })
+    const app = await startApp({ git })
+    await app.press(keys.enter, keys.enter)
+    await app.waitForStep('Review scope')
+    await app.press(keys.enter)
+    await app.waitForText('Reading changes')
+    await app.press(keys.escape)
+    await app.waitForStep('Project folder')
+
+    finishLoading()
+    await delay(100)
+    expect(app.frame()).toMatch(stepTitle('Project folder'))
+    expect(app.frame()).not.toContain('Scope         uncommitted')
   })
 
   it('stays on the scope step when there is nothing to review', async () => {
@@ -709,6 +767,18 @@ describe.concurrent('App prompt step', () => {
     expect(app.frame()).toMatch(fieldLine('Prompt', 'Context'))
   })
 
+  it('keeps the typed prompt when going back to the reviewers', async () => {
+    const app = await startAtCouncil()
+    await toPrompt(app)
+    await app.press('Keep the VAT rule')
+    await app.press(keys.escape)
+    await app.waitForStep('Reviewer 2')
+    await app.press(keys.ctrlD)
+    await app.waitForStep('Review prompt')
+
+    expect(app.frame()).toContain('Keep the VAT rule')
+  })
+
   it('removes the last character with Backspace', async () => {
     const app = await startAtCouncil()
     await toPrompt(app)
@@ -767,7 +837,22 @@ describe.concurrent('App run', () => {
     await app.press(keys.enter)
   }
 
-  it('ends as failed when an agent cannot be started', async () => {
+  it('ends as failed when the change cannot be prepared for the agents', async () => {
+    const app = await startAtCouncil({
+      review: {
+        ...fakeReview(),
+        prepareWorkspace: async () => {
+          throw new Error('Could not read the diff from Git')
+        },
+      },
+    })
+    await toRun(app)
+    await app.waitFor('the app to exit', app.hasExited)
+
+    expect(app.outcomes).toEqual([{ kind: 'failed', error: 'Could not read the diff from Git' }])
+  })
+
+  it('shows an agent that cannot be started as failed', async () => {
     const app = await startAtCouncil({
       review: {
         ...fakeReview(),
@@ -779,7 +864,8 @@ describe.concurrent('App run', () => {
     await toRun(app)
     await app.waitFor('the app to exit', app.hasExited)
 
-    expect(app.outcomes).toEqual([{ kind: 'failed', error: 'spawn codex ENOENT' }])
+    expect(app.outcomes).toEqual([{ kind: 'finished', result: expect.objectContaining({ kind: 'reviewers-failed' }) }])
+    expect(app.frame()).toMatch(/code +✘ failed · spawn codex ENOENT/)
   })
 
   it('ends without a report when every reviewer fails', async () => {

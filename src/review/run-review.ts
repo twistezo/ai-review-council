@@ -84,6 +84,33 @@ export const runReview = async (
   const reviewers = numberReviewers(session.reviewers)
   const workspace = await prepareWorkspace(session.repository.root, session.scope)
 
+  // A throwing agent fails alone, so the workspace stays until every agent has settled.
+  const launchAgent = async (
+    configuration: AgentConfiguration,
+    instructionFiles: readonly string[],
+    message: string,
+    agentId: string,
+  ): Promise<AgentRunResult> => {
+    try {
+      return await runAgent(
+        {
+          configuration,
+          cwd: session.repository.root,
+          instructions: await readInstructions(instructionFiles),
+          message,
+          readableDirectories: [workspace.directory],
+        },
+        {
+          timeoutMs: session.timeoutMinutes * 60_000,
+          signal,
+          onEvent: (event) => onProgress(agentId, (progress) => applyAgentEvent(progress, event)),
+        },
+      )
+    } catch (error) {
+      return { ok: false, error: error instanceof Error ? error.message : String(error), sessionId: null }
+    }
+  }
+
   const runOne = async (
     agentId: string,
     configuration: AgentConfiguration,
@@ -91,20 +118,7 @@ export const runReview = async (
     message: string,
   ): Promise<AgentRunResult> => {
     onProgress(agentId, () => startProgress(now()))
-    const result = await runAgent(
-      {
-        configuration,
-        cwd: session.repository.root,
-        instructions: await readInstructions(instructionFiles),
-        message,
-        readableDirectories: [workspace.directory],
-      },
-      {
-        timeoutMs: session.timeoutMinutes * 60_000,
-        signal,
-        onEvent: (event) => onProgress(agentId, (progress) => applyAgentEvent(progress, event)),
-      },
-    )
+    const result = await launchAgent(configuration, instructionFiles, message, agentId)
     const note = result.ok ? findingsNote(result.report) : result.error
     onProgress(agentId, (progress) => finishProgress(progress, { ok: result.ok, note }, now()))
 

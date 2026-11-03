@@ -52,7 +52,7 @@ describe('parseCliOptions', () => {
     })
   })
 
-  it.each(['0', '31', '1.5', 'ten', ''])('rejects the timeout %j', (value) => {
+  it.each(['0', '31', '1.5', 'ten', '', '1e1', '0x5', '0b11', ' 5 '])('rejects the timeout %j', (value) => {
     expect(parseCliOptions(['--timeout', value])).toEqual({
       ok: false,
       error: 'The --timeout option needs whole minutes from 1 to 30.',

@@ -10,14 +10,19 @@ type PromptStepProps = {
   readClipboard: () => Promise<string | null>
   // an empty prompt means a review of the code alone
   onSubmit: (prompt: string) => void
-  onBack?: () => void
+  // gets the typed text so going back keeps it
+  onBack?: (prompt: string) => void
 }
 
 export const PromptStep = ({ value, readClipboard, onSubmit, onBack }: PromptStepProps): JSX.Element => {
   const [prompt, setPrompt] = useState(value)
 
   return (
-    <StepFrame title="Review prompt" hints="Enter newline · Ctrl+D confirm · Cmd+V paste" onBack={onBack}>
+    <StepFrame
+      title="Review prompt"
+      hints="Enter newline · Ctrl+D confirm · Cmd+V paste"
+      onBack={onBack && ((): void => onBack(prompt))}
+    >
       <Box flexDirection="column" marginBottom={1}>
         <Text dimColor>Review context, goals and skills. Shared by all agents.</Text>
         <Text dimColor>Read-only local review. No live web access.</Text>

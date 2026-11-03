@@ -10,6 +10,7 @@ import { SelectList } from '../components/select-list.js'
 import { ErrorText, StepFrame } from '../components/step-frame.js'
 import { TextInput } from '../components/text-input.js'
 import { theme } from '../theme.js'
+import { useIsMounted } from '../use-is-mounted.js'
 
 type ScopeStepProps = {
   git: GitRepository
@@ -48,6 +49,7 @@ export const ScopeStep = ({
   const [view, setView] = useState<ScopeView>(preset === null ? 'kind' : 'loading')
   const [commitRef, setCommitRef] = useState(preset?.kind === 'since-commit' ? preset.commitRef : '')
   const [error, setError] = useState<string | null>(null)
+  const isMounted = useIsMounted()
 
   const load = async (request: ScopeRequest): Promise<boolean> => {
     const previousView: ScopeView = request.kind === 'since-commit' ? 'commit' : 'kind'
@@ -55,6 +57,9 @@ export const ScopeStep = ({
     setError(null)
     try {
       const result = await buildReviewScope(git, repository.root, request)
+      if (!isMounted()) {
+        return false
+      }
       if (result.ok) {
         onSubmit(result.scope)
 
@@ -62,6 +67,9 @@ export const ScopeStep = ({
       }
       setError(result.error)
     } catch (caught) {
+      if (!isMounted()) {
+        return false
+      }
       setError(caught instanceof Error ? caught.message : String(caught))
     }
     setView(previousView)
@@ -72,7 +80,7 @@ export const ScopeStep = ({
   useEffect(() => {
     if (preset !== null) {
       void load(preset).then((succeeded) => {
-        if (!succeeded) {
+        if (!succeeded && isMounted()) {
           onPresetFailed()
         }
       })

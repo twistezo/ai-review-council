@@ -241,7 +241,10 @@ export const App = ({ title, services, presets, timeoutMinutes, onFinish }: AppP
             value={state.prompt}
             readClipboard={services.readClipboard}
             onSubmit={(prompt) => complete({ prompt })}
-            onBack={back}
+            onBack={(prompt) => {
+              setState((current) => ({ ...current, prompt }))
+              back?.()
+            }}
           />
         )
       case 'summary': {

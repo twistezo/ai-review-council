@@ -84,8 +84,10 @@ export const parseCliOptions = (args: readonly string[]): CliOptionsResult => {
   if (scope === 'invalid') {
     return { ok: false, error: 'The --scope option needs `uncommitted`, `codebase` or a commit hash (4 to 40 hexadecimal characters).' }
   }
+  // plain digits only: `Number` would also take `1e1`, `0x5` or padded values
+  const isPlainNumber = values.timeout === undefined || /^\d+$/.test(values.timeout)
   const timeout = timeoutMinutesSchema.safeParse(values.timeout === undefined ? defaultTimeoutMinutes : Number(values.timeout))
-  if (!timeout.success) {
+  if (!isPlainNumber || !timeout.success) {
     return { ok: false, error: `The --timeout option needs whole minutes from 1 to ${maxTimeoutMinutes}.` }
   }
 

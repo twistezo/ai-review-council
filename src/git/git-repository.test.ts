@@ -103,6 +103,18 @@ describe('createGitRepository', () => {
     expect(await git.readState('/repo')).toEqual({ root: '/repo', branch: 'main', head: null, hasChanges: true })
   })
 
+  it('fails instead of reporting a clean tree when git status cannot run', async () => {
+    const git = createGitRepository(
+      fakeRunCommand({
+        'git symbolic-ref --quiet --short HEAD': commandResult({ stdout: 'main\n' }),
+        'git log -1 --format=%H%x00%s --end-of-options HEAD^{commit}': commandResult({ stdout: `${base}\0Fix bug\n` }),
+        'git status --porcelain=v1 -z --untracked-files=normal': commandResult({ exitCode: 128, stderr: 'index.lock' }),
+      }),
+    )
+
+    await expect(git.readState('/repo')).rejects.toThrow('Could not read the working tree with `git status`.')
+  })
+
   it('reads the repository root and the Git version, or nothing when Git fails', async () => {
     const git = createGitRepository(
       fakeRunCommand({

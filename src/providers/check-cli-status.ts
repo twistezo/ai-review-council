@@ -25,12 +25,14 @@ export const checkCliStatus = async (run: RunCommand, check: CliStatusCheck): Pr
     }
   }
   if (!isSuccessful(versionResult)) {
-    return {
-      provider: check.provider,
-      version: null,
-      problem: `\`${check.command} ${versionArgs.join(' ')}\` failed: ${versionResult.stderr.trim()}`,
-      fix: check.installFix,
-    }
+    const command = `\`${check.command} ${versionArgs.join(' ')}\``
+    const details = versionResult.stderr.trim()
+    const reason =
+      versionResult.failure === 'timeout'
+        ? 'timed out'
+        : `failed${details === '' ? ` with exit code ${versionResult.exitCode}` : `: ${details}`}`
+
+    return { provider: check.provider, version: null, problem: `${command} ${reason}`, fix: check.installFix }
   }
   const version = versionResult.stdout.trim()
   if (check.loginStatusArgs === null) {

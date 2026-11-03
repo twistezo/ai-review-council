@@ -72,12 +72,16 @@ export const createGitRepository = (run: RunCommand): GitRepository => {
         resolveCommit(root, 'HEAD'),
         git(root, ['status', '--porcelain=v1', '-z', '--untracked-files=normal']),
       ])
+      // An unreadable working tree must not pass for a clean one.
+      if (statusOutput === null) {
+        throw new Error('Could not read the working tree with `git status`.')
+      }
 
       return {
         root,
         branch: branchOutput === null ? null : branchOutput.trim(),
         head,
-        hasChanges: statusOutput !== null && statusOutput !== '',
+        hasChanges: statusOutput !== '',
       }
     },
 

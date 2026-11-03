@@ -55,10 +55,13 @@ export const takeCancelledCount = (): number => {
   return count
 }
 
-const formatMinutes = (ms: number): string => {
+const formatDuration = (ms: number): string => {
   const minutes = ms / 60_000
+  if (Number.isInteger(minutes)) {
+    return `${minutes} min`
+  }
 
-  return Number.isInteger(minutes) ? `${minutes} min` : `${Math.round(ms / 1000)} s`
+  return ms < 1000 ? `${ms} ms` : `${Math.round(ms / 1000)} s`
 }
 
 // Runs one agent to completion. A run that ends without a report is a failure, never "no findings".
@@ -115,7 +118,7 @@ export const runAgentProcess = (
       setTimeout(() => killGroup(pid, 'SIGKILL'), killGraceMs).unref()
     }
 
-    const timer = setTimeout(() => stop(`Timed out after ${formatMinutes(timeoutMs)}`), timeoutMs)
+    const timer = setTimeout(() => stop(`Timed out after ${formatDuration(timeoutMs)}`), timeoutMs)
     const cancel = (): void => {
       if (stopReason === null) {
         cancelledCount += 1
@@ -142,6 +145,8 @@ export const runAgentProcess = (
         } else if (event.kind === 'completed') {
           isCompleted = true
           completedText = event.text
+          // a turn that completes after an error (e.g. a reconnect) has recovered from it
+          agentError = null
         } else if (event.kind === 'error') {
           agentError ??= event.message
         }
@@ -177,7 +182,9 @@ export const runAgentProcess = (
 
         return
       }
-      const report = (completedText ?? lastMessage ?? '').trim()
+      // an empty final text falls back to the last message
+      const completedReport = completedText?.trim() ?? ''
+      const report = completedReport === '' ? (lastMessage ?? '').trim() : completedReport
       if (isCompleted && report !== '') {
         settle({ ok: true, report, sessionId })
 

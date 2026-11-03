@@ -96,7 +96,7 @@ describe('runPreflight', () => {
     expect(checkLabelled(result, 'Copilot')).toEqual({
       label: 'Copilot',
       state: 'ok',
-      detail: '1.0.0, 1 models',
+      detail: '1.0.0, 1 model',
       fix: null,
     })
   })
@@ -134,6 +134,51 @@ describe('runPreflight', () => {
       fix: 'Check your plan and CLI configuration.',
     })
     expect(result.models.some((model) => model.provider === 'codex')).toBe(false)
+  })
+
+  it('treats a provider whose check throws as unavailable and goes on with the others', async () => {
+    const broken = fakeAdapter('codex')
+    const result = await runPreflight(
+      dependencies({
+        adapters: [
+          {
+            ...broken,
+            checkStatus: async () => {
+              throw new Error('spawn EACCES')
+            },
+          },
+          fakeAdapter('claude'),
+        ],
+      }),
+    )
+
+    expect(result.blocker).toBeNull()
+    expect(checkLabelled(result, 'Codex')).toMatchObject({
+      state: 'unavailable',
+      detail: 'Could not check the CLI: spawn EACCES',
+    })
+    expect(result.models.every((model) => model.provider === 'claude')).toBe(true)
+  })
+
+  it('blocks with a Git check failure when running Git throws', async () => {
+    const git = fakeGitRepository({
+      readVersion: async () => {
+        throw new Error('spawn git EACCES')
+      },
+    })
+    const result = await runPreflight(dependencies({ git }))
+
+    expect(result.blocker).toBe('Git is required.')
+    expect(checkLabelled(result, 'Git')).toMatchObject({
+      state: 'failed',
+      detail: 'Could not run `git --version`: spawn git EACCES',
+    })
+  })
+
+  it('shows only the model count when the CLI reports no version', async () => {
+    const result = await runPreflight(dependencies({ adapters: [fakeAdapter('claude', { status: { version: null } })] }))
+
+    expect(checkLabelled(result, 'Claude')).toMatchObject({ state: 'ok', detail: '2 models' })
   })
 
   it('blocks when instruction files are missing', async () => {
