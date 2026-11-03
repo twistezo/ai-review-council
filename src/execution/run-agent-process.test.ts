@@ -1,12 +1,17 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
-import path from 'node:path'
-import { describe, expect, it } from 'vitest'
+import { mkdtemp, rm, writeFile } from "node:fs/promises"
+import { tmpdir } from "node:os"
+import path from "node:path"
+import { describe, expect, it } from "vitest"
 
-import type { AgentEvent } from './agent-events.js'
-import { parseClaudeLine, parseCodexLine, parseCopilotLine, parseCopilotUsage } from './agent-events.js'
-import type { AgentProcessSpec } from './agent-commands.js'
-import { runAgentProcess } from './run-agent-process.js'
+import type { AgentEvent } from "./agent-events.js"
+import {
+  parseClaudeLine,
+  parseCodexLine,
+  parseCopilotLine,
+  parseCopilotUsage,
+} from "./agent-events.js"
+import type { AgentProcessSpec } from "./agent-commands.js"
+import { runAgentProcess } from "./run-agent-process.js"
 
 const isAlive = (pid: number): boolean => {
   try {
@@ -18,48 +23,60 @@ const isAlive = (pid: number): boolean => {
   }
 }
 
-const delay = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms))
+const delay = (ms: number): Promise<void> =>
+  new Promise(resolve => setTimeout(resolve, ms))
 
 // A stand-in CLI: a Node script printing Codex-style JSON lines.
 const fakeAgent = (script: string): AgentProcessSpec => ({
   command: process.execPath,
-  args: ['-e', script],
+  args: ["-e", script],
   cwd: process.cwd(),
-  stdin: 'Review this change',
+  stdin: "Review this change",
 })
 
-const emit = (event: unknown): string => `console.log(${JSON.stringify(JSON.stringify(event))});`
+const emit = (event: unknown): string =>
+  `console.log(${JSON.stringify(JSON.stringify(event))});`
 
-const thread = emit({ type: 'thread.started', thread_id: 'th-1' })
-const report = emit({ type: 'item.completed', item: { type: 'agent_message', text: '# Report' } })
-const turnCompleted = emit({ type: 'turn.completed' })
+const thread = emit({ type: "thread.started", thread_id: "th-1" })
+const report = emit({
+  type: "item.completed",
+  item: { type: "agent_message", text: "# Report" },
+})
+const turnCompleted = emit({ type: "turn.completed" })
 
-describe('runAgentProcess', () => {
-  it('returns the last message as the report and forwards events', async () => {
+describe("runAgentProcess", () => {
+  it("returns the last message as the report and forwards events", async () => {
     const events: AgentEvent[] = []
     const result = await runAgentProcess(
       fakeAgent(
-        `${thread}${emit({ type: 'item.started', item: { type: 'command_execution', command: 'cat a.ts' } })}${report}${turnCompleted}`,
+        `${thread}${emit({ type: "item.started", item: { type: "command_execution", command: "cat a.ts" } })}${report}${turnCompleted}`,
       ),
       parseCodexLine,
-      { timeoutMs: 5_000, onEvent: (event) => events.push(event) },
+      { timeoutMs: 5_000, onEvent: event => events.push(event) },
     )
 
-    expect(result).toEqual({ ok: true, report: '# Report', sessionId: 'th-1' })
-    expect(events.map((event) => event.kind)).toEqual(['session', 'read', 'message', 'completed'])
+    expect(result).toEqual({ ok: true, report: "# Report", sessionId: "th-1" })
+    expect(events.map(event => event.kind)).toEqual([
+      "session",
+      "read",
+      "message",
+      "completed",
+    ])
   })
 
-  it('sends the message on stdin', async () => {
+  it("sends the message on stdin", async () => {
     const echoStdin = `let input = ''; process.stdin.on('data', (c) => (input += c)); process.stdin.on('end', () => {
       console.log(JSON.stringify({ type: 'item.completed', item: { type: 'agent_message', text: input } }));
       ${turnCompleted}
     });`
-    const result = await runAgentProcess(fakeAgent(echoStdin), parseCodexLine, { timeoutMs: 5_000 })
+    const result = await runAgentProcess(fakeAgent(echoStdin), parseCodexLine, {
+      timeoutMs: 5_000,
+    })
 
-    expect(result).toMatchObject({ ok: true, report: 'Review this change' })
+    expect(result).toMatchObject({ ok: true, report: "Review this change" })
   })
 
-  it('fails when the process exits before finishing', async () => {
+  it("fails when the process exits before finishing", async () => {
     const result = await runAgentProcess(
       fakeAgent(`${thread}console.error('auth expired'); process.exit(3);`),
       parseCodexLine,
@@ -69,162 +86,216 @@ describe('runAgentProcess', () => {
     expect(result).toEqual({
       ok: false,
       error: `\`${process.execPath}\` exited with code 3 before finishing: auth expired`,
-      sessionId: 'th-1',
+      sessionId: "th-1",
     })
   })
 
-  it('fails when the agent finishes without a report', async () => {
-    const result = await runAgentProcess(fakeAgent(turnCompleted), parseCodexLine, { timeoutMs: 5_000 })
-
-    expect(result).toMatchObject({ ok: false, error: 'The agent finished without a report' })
-  })
-
-  it('fails on an agent error even if a message came before', async () => {
+  it("fails when the agent finishes without a report", async () => {
     const result = await runAgentProcess(
-      fakeAgent(`${report}${emit({ type: 'turn.failed', error: { message: 'rate limited' } })}`),
+      fakeAgent(turnCompleted),
       parseCodexLine,
       { timeoutMs: 5_000 },
     )
 
-    expect(result).toMatchObject({ ok: false, error: 'Codex turn failed: rate limited' })
+    expect(result).toMatchObject({
+      ok: false,
+      error: "The agent finished without a report",
+    })
   })
 
-  it('keeps the report when the agent recovers from an error and completes the turn', async () => {
+  it("fails on an agent error even if a message came before", async () => {
     const result = await runAgentProcess(
-      fakeAgent(`${thread}${emit({ type: 'error', message: 'Reconnecting... 1/5' })}${report}${turnCompleted}`),
+      fakeAgent(
+        `${report}${emit({ type: "turn.failed", error: { message: "rate limited" } })}`,
+      ),
       parseCodexLine,
       { timeoutMs: 5_000 },
     )
 
-    expect(result).toEqual({ ok: true, report: '# Report', sessionId: 'th-1' })
+    expect(result).toMatchObject({
+      ok: false,
+      error: "Codex turn failed: rate limited",
+    })
   })
 
-  it('fails on an error that comes after the turn completed', async () => {
+  it("keeps the report when the agent recovers from an error and completes the turn", async () => {
     const result = await runAgentProcess(
-      fakeAgent(`${report}${turnCompleted}${emit({ type: 'error', message: 'stream closed' })}`),
+      fakeAgent(
+        `${thread}${emit({ type: "error", message: "Reconnecting... 1/5" })}${report}${turnCompleted}`,
+      ),
       parseCodexLine,
       { timeoutMs: 5_000 },
     )
 
-    expect(result).toMatchObject({ ok: false, error: 'Codex error: stream closed' })
+    expect(result).toEqual({ ok: true, report: "# Report", sessionId: "th-1" })
   })
 
-  it('kills a run that exceeds the timeout', async () => {
+  it("fails on an error that comes after the turn completed", async () => {
+    const result = await runAgentProcess(
+      fakeAgent(
+        `${report}${turnCompleted}${emit({ type: "error", message: "stream closed" })}`,
+      ),
+      parseCodexLine,
+      { timeoutMs: 5_000 },
+    )
+
+    expect(result).toMatchObject({
+      ok: false,
+      error: "Codex error: stream closed",
+    })
+  })
+
+  it("kills a run that exceeds the timeout", async () => {
     const started = Date.now()
-    const result = await runAgentProcess(fakeAgent(`${thread}setInterval(() => {}, 1000);`), parseCodexLine, {
-      timeoutMs: 300,
-    })
+    const result = await runAgentProcess(
+      fakeAgent(`${thread}setInterval(() => {}, 1000);`),
+      parseCodexLine,
+      {
+        timeoutMs: 300,
+      },
+    )
 
-    expect(result).toEqual({ ok: false, error: 'Timed out after 300 ms', sessionId: 'th-1' })
+    expect(result).toEqual({
+      ok: false,
+      error: "Timed out after 300 ms",
+      sessionId: "th-1",
+    })
     expect(Date.now() - started).toBeLessThan(3_000)
   })
 
-  it('stops when cancelled', async () => {
+  it("stops when cancelled", async () => {
     const controller = new AbortController()
-    const run = runAgentProcess(fakeAgent('setInterval(() => {}, 1000);'), parseCodexLine, {
-      timeoutMs: 5_000,
-      signal: controller.signal,
-    })
+    const run = runAgentProcess(
+      fakeAgent("setInterval(() => {}, 1000);"),
+      parseCodexLine,
+      {
+        timeoutMs: 5_000,
+        signal: controller.signal,
+      },
+    )
     setTimeout(() => controller.abort(), 100)
 
-    expect(await run).toMatchObject({ ok: false, error: 'Cancelled' })
+    expect(await run).toMatchObject({ ok: false, error: "Cancelled" })
   })
 
-  it('does not start the work of a run cancelled before it began', async () => {
+  it("does not start the work of a run cancelled before it began", async () => {
     const controller = new AbortController()
     controller.abort()
-    const result = await runAgentProcess(fakeAgent(`${report}${turnCompleted}setInterval(() => {}, 1000);`), parseCodexLine, {
-      timeoutMs: 5_000,
-      signal: controller.signal,
-    })
+    const result = await runAgentProcess(
+      fakeAgent(`${report}${turnCompleted}setInterval(() => {}, 1000);`),
+      parseCodexLine,
+      {
+        timeoutMs: 5_000,
+        signal: controller.signal,
+      },
+    )
 
-    expect(result).toMatchObject({ ok: false, error: 'Cancelled' })
+    expect(result).toMatchObject({ ok: false, error: "Cancelled" })
   })
 
-  it('takes the Claude result text as the report over earlier messages', async () => {
+  it("takes the Claude result text as the report over earlier messages", async () => {
     const result = await runAgentProcess(
       fakeAgent(
-        `${emit({ type: 'assistant', message: { content: [{ type: 'text', text: 'Let me read the diff.' }] } })}${emit({ type: 'result', subtype: 'success', is_error: false, result: '# Final report' })}`,
+        `${emit({ type: "assistant", message: { content: [{ type: "text", text: "Let me read the diff." }] } })}${emit({ type: "result", subtype: "success", is_error: false, result: "# Final report" })}`,
       ),
       parseClaudeLine,
       { timeoutMs: 5_000 },
     )
 
-    expect(result).toMatchObject({ ok: true, report: '# Final report' })
+    expect(result).toMatchObject({ ok: true, report: "# Final report" })
   })
 
-  it('falls back to the last message when the Claude result text is empty', async () => {
+  it("falls back to the last message when the Claude result text is empty", async () => {
     const result = await runAgentProcess(
       fakeAgent(
-        `${emit({ type: 'assistant', message: { content: [{ type: 'text', text: '# Report' }] } })}${emit({ type: 'result', subtype: 'success', is_error: false, result: '' })}`,
+        `${emit({ type: "assistant", message: { content: [{ type: "text", text: "# Report" }] } })}${emit({ type: "result", subtype: "success", is_error: false, result: "" })}`,
       ),
       parseClaudeLine,
       { timeoutMs: 5_000 },
     )
 
-    expect(result).toMatchObject({ ok: true, report: '# Report' })
+    expect(result).toMatchObject({ ok: true, report: "# Report" })
   })
 
-  it('reads token usage from the Copilot usage file once the run ends', async () => {
-    const directory = await mkdtemp(path.join(tmpdir(), 'copilot-usage-'))
-    const usagePath = path.join(directory, 'usage.json')
+  it("reads token usage from the Copilot usage file once the run ends", async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), "copilot-usage-"))
+    const usagePath = path.join(directory, "usage.json")
     await writeFile(
       usagePath,
-      JSON.stringify({ tokenDetails: { input: { tokenCount: 10 }, output: { tokenCount: 5 } } }),
+      JSON.stringify({
+        tokenDetails: { input: { tokenCount: 10 }, output: { tokenCount: 5 } },
+      }),
     )
     const events: AgentEvent[] = []
-    const copilotRun = `${emit({ type: 'assistant.message', data: { phase: 'final_answer', content: '# Report' } })}${emit({ type: 'result', sessionId: 's-1', exitCode: 0 })}`
+    const copilotRun = `${emit({ type: "assistant.message", data: { phase: "final_answer", content: "# Report" } })}${emit({ type: "result", sessionId: "s-1", exitCode: 0 })}`
 
     try {
       const result = await runAgentProcess(
-        { ...fakeAgent(copilotRun), usageFile: { path: usagePath, parse: parseCopilotUsage } },
+        {
+          ...fakeAgent(copilotRun),
+          usageFile: { path: usagePath, parse: parseCopilotUsage },
+        },
         parseCopilotLine,
-        { timeoutMs: 5_000, onEvent: (event) => events.push(event) },
+        { timeoutMs: 5_000, onEvent: event => events.push(event) },
       )
 
-      expect(result).toEqual({ ok: true, report: '# Report', sessionId: 's-1' })
-      expect(events).toContainEqual({ kind: 'usage', tokens: 15 })
+      expect(result).toEqual({ ok: true, report: "# Report", sessionId: "s-1" })
+      expect(events).toContainEqual({ kind: "usage", tokens: 15 })
     } finally {
       await rm(directory, { recursive: true, force: true })
     }
   })
 
-  it('finishes without usage when the Copilot usage file was never written', async () => {
+  it("finishes without usage when the Copilot usage file was never written", async () => {
     const events: AgentEvent[] = []
-    const copilotRun = `${emit({ type: 'assistant.message', data: { phase: 'final_answer', content: '# Report' } })}${emit({ type: 'result', exitCode: 0 })}`
+    const copilotRun = `${emit({ type: "assistant.message", data: { phase: "final_answer", content: "# Report" } })}${emit({ type: "result", exitCode: 0 })}`
     const result = await runAgentProcess(
       {
         ...fakeAgent(copilotRun),
-        usageFile: { path: path.join(tmpdir(), 'no-such-dir-council', 'usage.json'), parse: parseCopilotUsage },
+        usageFile: {
+          path: path.join(tmpdir(), "no-such-dir-council", "usage.json"),
+          parse: parseCopilotUsage,
+        },
       },
       parseCopilotLine,
-      { timeoutMs: 5_000, onEvent: (event) => events.push(event) },
+      { timeoutMs: 5_000, onEvent: event => events.push(event) },
     )
 
-    expect(result).toMatchObject({ ok: true, report: '# Report' })
-    expect(events.some((event) => event.kind === 'usage')).toBe(false)
+    expect(result).toMatchObject({ ok: true, report: "# Report" })
+    expect(events.some(event => event.kind === "usage")).toBe(false)
   })
 
-  it('stops a process the agent started that ignores SIGTERM, once the agent is gone', async () => {
+  it("stops a process the agent started that ignores SIGTERM, once the agent is gone", async () => {
     // The descendant has its own stdio, so the agent closing does not wait for it.
     const spawnStubborn = `const child = require('node:child_process').spawn(process.execPath, ['-e', "process.on('SIGTERM', () => {}); setInterval(() => {}, 1000);"], { stdio: 'ignore' });
       console.log(JSON.stringify({ type: 'thread.started', thread_id: String(child.pid) }));
       setInterval(() => {}, 1000);`
-    const result = await runAgentProcess(fakeAgent(spawnStubborn), parseCodexLine, { timeoutMs: 500 })
+    const result = await runAgentProcess(
+      fakeAgent(spawnStubborn),
+      parseCodexLine,
+      { timeoutMs: 500 },
+    )
     const descendantPid = Number(result.sessionId)
     await delay(100)
 
-    expect(result).toMatchObject({ ok: false, error: expect.stringContaining('Timed out after') })
+    expect(result).toMatchObject({
+      ok: false,
+      error: expect.stringContaining("Timed out after"),
+    })
     expect(isAlive(descendantPid)).toBe(false)
   })
 
-  it('reports a missing CLI', async () => {
+  it("reports a missing CLI", async () => {
     const result = await runAgentProcess(
-      { command: 'no-such-agent-cli', args: [], cwd: process.cwd(), stdin: '' },
+      { command: "no-such-agent-cli", args: [], cwd: process.cwd(), stdin: "" },
       parseCodexLine,
       { timeoutMs: 5_000 },
     )
 
-    expect(result).toEqual({ ok: false, error: '`no-such-agent-cli` was not found in PATH', sessionId: null })
+    expect(result).toEqual({
+      ok: false,
+      error: "`no-such-agent-cli` was not found in PATH",
+      sessionId: null,
+    })
   })
 })

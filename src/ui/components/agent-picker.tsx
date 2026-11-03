@@ -1,14 +1,19 @@
-import type { JSX } from 'react'
+import type { JSX } from "react"
 
-import type { ReviewType } from '../../domain/review-session.js'
-import { reviewTypes } from '../../domain/review-session.js'
-import type { CatalogModel } from '../../providers/model-catalog.js'
-import { effortOptions, formatEffort } from '../../providers/model-catalog.js'
-import { providerDisplayNames } from '../../providers/provider-adapter.js'
-import type { AgentChoice } from '../agent-choice.js'
-import { catalogProviders, changeModel, changeProvider, providerModelIndexes } from '../agent-choice.js'
-import type { PickerColumn } from './column-picker.js'
-import { ColumnPicker } from './column-picker.js'
+import type { ReviewType } from "../../domain/review-session.js"
+import { reviewTypes } from "../../domain/review-session.js"
+import type { CatalogModel } from "../../providers/model-catalog.js"
+import { effortOptions, formatEffort } from "../../providers/model-catalog.js"
+import { providerDisplayNames } from "../../providers/provider-adapter.js"
+import type { AgentChoice } from "../agent-choice.js"
+import {
+  catalogProviders,
+  changeModel,
+  changeProvider,
+  providerModelIndexes,
+} from "../agent-choice.js"
+import type { PickerColumn } from "./column-picker.js"
+import { ColumnPicker } from "./column-picker.js"
 
 type AgentPickerProps = {
   models: readonly CatalogModel[]
@@ -20,26 +25,41 @@ type AgentPickerProps = {
 }
 
 // Columns: provider, model of that provider, effort, and optionally the review type.
-export const AgentPicker = ({ models, choice, onChange, reviewType, onSubmit }: AgentPickerProps): JSX.Element => {
+export const AgentPicker = ({
+  models,
+  choice,
+  onChange,
+  reviewType,
+  onSubmit,
+}: AgentPickerProps): JSX.Element => {
   const model = models[choice.modelIndex]
   const providers = catalogProviders(models)
-  const modelIndexes = model === undefined ? [] : providerModelIndexes(models, model.provider)
+  const modelIndexes =
+    model === undefined ? [] : providerModelIndexes(models, model.provider)
   const efforts = model === undefined ? [] : effortOptions(model)
   const columns: PickerColumn[] = [
     {
-      title: 'Provider',
-      options: providers.map((provider) => providerDisplayNames[provider]),
+      title: "Provider",
+      options: providers.map(provider => providerDisplayNames[provider]),
       selected: model === undefined ? 0 : providers.indexOf(model.provider),
     },
     {
-      title: 'Model',
-      options: modelIndexes.map((index) => models[index]?.label ?? ''),
+      title: "Model",
+      options: modelIndexes.map(index => models[index]?.label ?? ""),
       selected: Math.max(0, modelIndexes.indexOf(choice.modelIndex)),
     },
-    { title: 'Effort', options: efforts.map(formatEffort), selected: Math.max(0, efforts.indexOf(choice.effort)) },
+    {
+      title: "Effort",
+      options: efforts.map(formatEffort),
+      selected: Math.max(0, efforts.indexOf(choice.effort)),
+    },
   ]
   if (reviewType !== undefined) {
-    columns.push({ title: 'Review', options: reviewTypes, selected: reviewTypes.indexOf(reviewType.value) })
+    columns.push({
+      title: "Review",
+      options: reviewTypes,
+      selected: reviewTypes.indexOf(reviewType.value),
+    })
   }
 
   const changeColumn = (column: number, option: number): void => {
@@ -56,5 +76,11 @@ export const AgentPicker = ({ models, choice, onChange, reviewType, onSubmit }: 
     }
   }
 
-  return <ColumnPicker columns={columns} onSubmit={onSubmit} onChange={changeColumn} />
+  return (
+    <ColumnPicker
+      columns={columns}
+      onSubmit={onSubmit}
+      onChange={changeColumn}
+    />
+  )
 }

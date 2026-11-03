@@ -1,8 +1,8 @@
-import { Box, Text, useInput } from 'ink'
-import type { JSX, ReactNode } from 'react'
-import { createContext, useContext } from 'react'
+import { Box, Text, useInput } from "ink"
+import type { JSX, ReactNode } from "react"
+import { createContext, useContext } from "react"
 
-import { theme } from '../theme.js'
+import { theme } from "../theme.js"
 
 // The step counter, e.g. `step 1 of 5`, shown after the step title; null hides it.
 export const StepCounterContext = createContext<string | null>(null)
@@ -18,7 +18,12 @@ type StepFrameProps = {
   children: ReactNode
 }
 
-export const StepFrame = ({ title, hints, onBack, children }: StepFrameProps): JSX.Element => {
+export const StepFrame = ({
+  title,
+  hints,
+  onBack,
+  children,
+}: StepFrameProps): JSX.Element => {
   const stepCounter = useContext(StepCounterContext)
   const answers = useContext(StepAnswersContext)
 
@@ -45,11 +50,15 @@ export const StepFrame = ({ title, hints, onBack, children }: StepFrameProps): J
       </Box>
       <Text dimColor>
         {hints}
-        {onBack !== undefined && ' · Esc back'} · Ctrl+C quit
+        {onBack !== undefined && " · Esc back"} · Ctrl+C quit
       </Text>
     </Box>
   )
 }
 
-export const ErrorText = ({ message }: { message: string | null }): JSX.Element | null =>
+export const ErrorText = ({
+  message,
+}: {
+  message: string | null
+}): JSX.Element | null =>
   message === null ? null : <Text color={theme.failure}>{message}</Text>

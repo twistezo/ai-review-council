@@ -1,4 +1,4 @@
-import type { Order } from './orders.js'
+import type { Order } from "./orders.js"
 
 type CachedOrder = { order: Order; expiresAt: number }
 type LoadOrder = (orderId: string, customerId: string) => Promise<Order>

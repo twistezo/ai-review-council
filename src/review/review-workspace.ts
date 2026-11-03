@@ -1,10 +1,10 @@
-import { rmSync } from 'node:fs'
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
-import path from 'node:path'
+import { rmSync } from "node:fs"
+import { mkdtemp, rm, writeFile } from "node:fs/promises"
+import { tmpdir } from "node:os"
+import path from "node:path"
 
-import type { ReviewScope } from '../domain/review-session.js'
-import type { GitRepository } from '../git/git-repository.js'
+import type { ReviewScope } from "../domain/review-session.js"
+import type { GitRepository } from "../git/git-repository.js"
 
 type ReviewWorkspace = {
   // outside the repository; agents get read access to it
@@ -13,7 +13,10 @@ type ReviewWorkspace = {
   cleanup: () => Promise<void>
 }
 
-export type PrepareWorkspace = (repositoryRoot: string, scope: ReviewScope) => Promise<ReviewWorkspace>
+export type PrepareWorkspace = (
+  repositoryRoot: string,
+  scope: ReviewScope,
+) => Promise<ReviewWorkspace>
 
 // Temporary folders of runs in progress, so an interrupted app can still remove them.
 const activeDirectories = new Set<string>()
@@ -46,8 +49,12 @@ export const removeActiveWorkspacesSync = (): number => {
 export const trackedDiffPaths = (scope: ReviewScope): string[] => [
   ...new Set(
     scope.changedFiles
-      .filter((file) => file.change !== 'untracked')
-      .flatMap((file) => (file.previousPath === null ? [file.path] : [file.previousPath, file.path])),
+      .filter(file => file.change !== "untracked")
+      .flatMap(file =>
+        file.previousPath === null
+          ? [file.path]
+          : [file.previousPath, file.path],
+      ),
   ),
 ]
 
@@ -55,11 +62,18 @@ export const trackedDiffPaths = (scope: ReviewScope): string[] => [
 export const createWorkspacePreparer =
   (git: GitRepository): PrepareWorkspace =>
   async (repositoryRoot, scope) => {
-    const directory = await mkdtemp(path.join(tmpdir(), 'ai-review-council-'))
+    const directory = await mkdtemp(path.join(tmpdir(), "ai-review-council-"))
     activeDirectories.add(directory)
-    const diffPath = path.join(directory, 'change.diff')
+    const diffPath = path.join(directory, "change.diff")
     try {
-      await writeFile(diffPath, await git.readDiff(repositoryRoot, scope.diffBase, trackedDiffPaths(scope)))
+      await writeFile(
+        diffPath,
+        await git.readDiff(
+          repositoryRoot,
+          scope.diffBase,
+          trackedDiffPaths(scope),
+        ),
+      )
     } catch (error) {
       await removeDirectory(directory)
       throw error

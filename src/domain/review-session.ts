@@ -1,25 +1,26 @@
-import { z } from 'zod'
+import { z } from "zod"
 
-const providerIds = ['codex', 'claude', 'copilot'] as const
+const providerIds = ["codex", "claude", "copilot"] as const
 const providerIdSchema = z.enum(providerIds)
 export type ProviderId = z.infer<typeof providerIdSchema>
 
-const councilProviderIds: readonly ProviderId[] = ['codex', 'claude']
-export const isCouncilProvider = (provider: ProviderId): boolean => councilProviderIds.includes(provider)
+const councilProviderIds: readonly ProviderId[] = ["codex", "claude"]
+export const isCouncilProvider = (provider: ProviderId): boolean =>
+  councilProviderIds.includes(provider)
 
 // Copilot offers only automatic model routing, which takes no effort argument.
-export const copilotModelId = 'auto'
+export const copilotModelId = "auto"
 
-export const reportLanguages = ['en', 'pl'] as const
+export const reportLanguages = ["en", "pl"] as const
 export const reportLanguageSchema = z.enum(reportLanguages)
 export type ReportLanguage = z.infer<typeof reportLanguageSchema>
 
 export const reportLanguageNames: Record<ReportLanguage, string> = {
-  en: 'English',
-  pl: 'Polish',
+  en: "English",
+  pl: "Polish",
 }
 
-export const reviewTypes = ['code', 'security', 'ui-ux'] as const
+export const reviewTypes = ["code", "security", "ui-ux"] as const
 const reviewTypeSchema = z.enum(reviewTypes)
 export type ReviewType = z.infer<typeof reviewTypeSchema>
 
@@ -32,10 +33,10 @@ const agentConfigurationSchema = z
     effort: z.string().min(1).nullable(),
   })
   .refine(
-    (configuration) =>
-      configuration.provider !== 'copilot' ||
+    configuration =>
+      configuration.provider !== "copilot" ||
       (configuration.model === copilotModelId && configuration.effort === null),
-    { message: 'Copilot supports only Auto without reasoning effort.' },
+    { message: "Copilot supports only Auto without reasoning effort." },
   )
 export type AgentConfiguration = z.infer<typeof agentConfigurationSchema>
 
@@ -55,7 +56,14 @@ const repositorySummarySchema = z.object({
 })
 type RepositorySummary = z.infer<typeof repositorySummarySchema>
 
-const fileChanges = ['added', 'modified', 'deleted', 'renamed', 'copied', 'untracked'] as const
+const fileChanges = [
+  "added",
+  "modified",
+  "deleted",
+  "renamed",
+  "copied",
+  "untracked",
+] as const
 const changedFileSchema = z.object({
   path: z.string().min(1),
   previousPath: z.string().min(1).nullable(),
@@ -69,7 +77,7 @@ const commitInfoSchema = z.object({
 })
 export type CommitInfo = z.infer<typeof commitInfoSchema>
 
-const reviewScopeKinds = ['uncommitted', 'since-commit', 'full'] as const
+const reviewScopeKinds = ["uncommitted", "since-commit", "full"] as const
 const reviewScopeSchema = z.object({
   kind: z.enum(reviewScopeKinds),
   // the commit the review starts from; HEAD for `full`
@@ -81,19 +89,26 @@ const reviewScopeSchema = z.object({
   excludedFiles: z.array(z.string().min(1)),
 })
 export type ReviewScope = z.infer<typeof reviewScopeSchema>
-export type ReviewScopeKind = ReviewScope['kind']
+export type ReviewScopeKind = ReviewScope["kind"]
 
 export const defaultTimeoutMinutes = 10
 export const maxTimeoutMinutes = 30
-export const timeoutMinutesSchema = z.number().int().min(1).max(maxTimeoutMinutes)
+export const timeoutMinutesSchema = z
+  .number()
+  .int()
+  .min(1)
+  .max(maxTimeoutMinutes)
 
 export const reviewSessionDraftSchema = z.object({
   language: reportLanguageSchema,
   repository: repositorySummarySchema,
   scope: reviewScopeSchema,
-  council: agentConfigurationSchema.refine((configuration) => isCouncilProvider(configuration.provider), {
-    message: 'The council agent must be Codex or Claude.',
-  }),
+  council: agentConfigurationSchema.refine(
+    configuration => isCouncilProvider(configuration.provider),
+    {
+      message: "The council agent must be Codex or Claude.",
+    },
+  ),
   reviewers: z.array(reviewerAssignmentSchema).min(1).max(maxReviewers),
   // empty: review the code alone
   prompt: z.string().trim(),

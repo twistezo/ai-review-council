@@ -1,13 +1,20 @@
-import { Box, Text } from 'ink'
-import type { JSX } from 'react'
-import { useEffect, useState } from 'react'
+import { Box, Text } from "ink"
+import type { JSX } from "react"
+import { useEffect, useState } from "react"
 
-import type { GitRepository, RepositoryState } from '../../git/git-repository.js'
-import { completeDirectory, isDirectory, resolveInputPath } from '../../paths/directory-path.js'
-import { ErrorText, StepFrame } from '../components/step-frame.js'
-import { TextInput } from '../components/text-input.js'
-import { theme } from '../theme.js'
-import { useIsMounted } from '../use-is-mounted.js'
+import type {
+  GitRepository,
+  RepositoryState,
+} from "../../git/git-repository.js"
+import {
+  completeDirectory,
+  isDirectory,
+  resolveInputPath,
+} from "../../paths/directory-path.js"
+import { ErrorText, StepFrame } from "../components/step-frame.js"
+import { TextInput } from "../components/text-input.js"
+import { theme } from "../theme.js"
+import { useIsMounted } from "../use-is-mounted.js"
 
 type ProjectStepProps = {
   git: GitRepository
@@ -21,11 +28,15 @@ type ProjectStepProps = {
   onBack?: () => void
 }
 
-type ResolveResult = { ok: true; repository: RepositoryState } | { ok: false; error: string }
+type ResolveResult =
+  { ok: true; repository: RepositoryState } | { ok: false; error: string }
 
 const maxCandidates = 8
 
-const resolveRepository = async (git: GitRepository, directory: string): Promise<ResolveResult> => {
+const resolveRepository = async (
+  git: GitRepository,
+  directory: string,
+): Promise<ResolveResult> => {
   if (!(await isDirectory(directory))) {
     return { ok: false, error: `Not a directory: ${directory}` }
   }
@@ -37,10 +48,17 @@ const resolveRepository = async (git: GitRepository, directory: string): Promise
   try {
     repository = await git.readState(root)
   } catch (error) {
-    return { ok: false, error: error instanceof Error ? error.message : String(error) }
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : String(error),
+    }
   }
   if (repository.head === null) {
-    return { ok: false, error: 'The repository has no commits, so there is nothing to compare against.' }
+    return {
+      ok: false,
+      error:
+        "The repository has no commits, so there is nothing to compare against.",
+    }
   }
 
   return { ok: true, repository }
@@ -65,7 +83,10 @@ export const ProjectStep = ({
   const submit = async (path: string): Promise<boolean> => {
     setIsChecking(true)
     setCandidates([])
-    const result = await resolveRepository(git, resolveInputPath(path, cwd, homeDirectory))
+    const result = await resolveRepository(
+      git,
+      resolveInputPath(path, cwd, homeDirectory),
+    )
     if (!isMounted()) {
       return false
     }
@@ -82,7 +103,7 @@ export const ProjectStep = ({
 
   useEffect(() => {
     if (autoSubmit) {
-      void submit(initialPath).then((succeeded) => {
+      void submit(initialPath).then(succeeded => {
         if (!succeeded && isMounted()) {
           onAutoSubmitFailed()
         }
@@ -98,10 +119,14 @@ export const ProjectStep = ({
   }
 
   return (
-    <StepFrame title="Project folder" hints="Tab complete · Enter confirm" onBack={onBack}>
+    <StepFrame
+      title="Project folder"
+      hints="Tab complete · Enter confirm"
+      onBack={onBack}
+    >
       <TextInput
         value={value}
-        onChange={(update) => {
+        onChange={update => {
           setValue(update)
           setError(null)
         }}
@@ -112,12 +137,14 @@ export const ProjectStep = ({
       />
       {candidates.length > 0 && (
         <Box flexDirection="column" marginTop={1}>
-          {candidates.slice(0, maxCandidates).map((candidate) => (
+          {candidates.slice(0, maxCandidates).map(candidate => (
             <Text key={candidate} dimColor>
               {candidate}/
             </Text>
           ))}
-          {candidates.length > maxCandidates && <Text dimColor>…and {candidates.length - maxCandidates} more</Text>}
+          {candidates.length > maxCandidates && (
+            <Text dimColor>…and {candidates.length - maxCandidates} more</Text>
+          )}
         </Box>
       )}
       {isChecking && <Text color={theme.warning}>Checking repository…</Text>}

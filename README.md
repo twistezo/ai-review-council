@@ -27,7 +27,7 @@ CLIs must be available on `PATH` and logged in. Usage and availability depend on
 
 ## Requirements
 
-- macOS
+- macOS, or desktop Linux
 - Node.js
 - git
 

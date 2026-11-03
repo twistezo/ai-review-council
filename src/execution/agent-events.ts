@@ -1,15 +1,15 @@
-import { z } from 'zod'
+import { z } from "zod"
 
 // Provider events reduced to what the run needs: progress, the report and failures.
 export type AgentEvent =
-  | { kind: 'session'; sessionId: string }
+  | { kind: "session"; sessionId: string }
   // tokens used so far: input, cached input and output together
-  | { kind: 'usage'; tokens: number }
-  | { kind: 'read'; target: string }
-  | { kind: 'message'; text: string }
+  | { kind: "usage"; tokens: number }
+  | { kind: "read"; target: string }
+  | { kind: "message"; text: string }
   // `text` is null when the provider ends the turn without repeating the final message.
-  | { kind: 'completed'; text: string | null }
-  | { kind: 'error'; message: string }
+  | { kind: "completed"; text: string | null }
+  | { kind: "error"; message: string }
 
 export type ParseAgentLine = (line: string) => AgentEvent[]
 
@@ -22,15 +22,19 @@ const parseJson = (line: string): unknown => {
 }
 
 const describeToolInput = (input: Record<string, unknown>): string => {
-  const target = input['file_path'] ?? input['pattern'] ?? input['path']
+  const target = input["file_path"] ?? input["pattern"] ?? input["path"]
 
-  return typeof target === 'string' ? target : ''
+  return typeof target === "string" ? target : ""
 }
 
-const claudeEventSchema = z.discriminatedUnion('type', [
-  z.object({ type: z.literal('system'), subtype: z.string().optional(), session_id: z.string().optional() }),
+const claudeEventSchema = z.discriminatedUnion("type", [
   z.object({
-    type: z.literal('assistant'),
+    type: z.literal("system"),
+    subtype: z.string().optional(),
+    session_id: z.string().optional(),
+  }),
+  z.object({
+    type: z.literal("assistant"),
     message: z.object({
       // Loose on purpose: unknown part types (thinking, images) must not drop the tool calls beside them.
       content: z.array(
@@ -44,7 +48,7 @@ const claudeEventSchema = z.discriminatedUnion('type', [
     }),
   }),
   z.object({
-    type: z.literal('result'),
+    type: z.literal("result"),
     subtype: z.string(),
     is_error: z.boolean().optional(),
     result: z.string().optional(),
@@ -69,25 +73,33 @@ const sumTokens = (counts: readonly (number | undefined)[]): number => {
 }
 
 // Claude Code `--output-format stream-json`.
-export const parseClaudeLine: ParseAgentLine = (line) => {
+export const parseClaudeLine: ParseAgentLine = line => {
   const parsed = claudeEventSchema.safeParse(parseJson(line))
   if (!parsed.success) {
     return []
   }
   const event = parsed.data
-  if (event.type === 'system') {
-    return event.subtype === 'init' && event.session_id !== undefined
-      ? [{ kind: 'session', sessionId: event.session_id }]
+  if (event.type === "system") {
+    return event.subtype === "init" && event.session_id !== undefined
+      ? [{ kind: "session", sessionId: event.session_id }]
       : []
   }
-  if (event.type === 'assistant') {
+  if (event.type === "assistant") {
     return event.message.content.flatMap((part): AgentEvent[] => {
-      if (part.type === 'tool_use') {
-        return [{ kind: 'read', target: `${part.name ?? ''} ${describeToolInput(part.input ?? {})}`.trim() }]
+      if (part.type === "tool_use") {
+        return [
+          {
+            kind: "read",
+            target:
+              `${part.name ?? ""} ${describeToolInput(part.input ?? {})}`.trim(),
+          },
+        ]
       }
 
-      return part.type === 'text' && part.text !== undefined && part.text.trim() !== ''
-        ? [{ kind: 'message', text: part.text }]
+      return part.type === "text" &&
+        part.text !== undefined &&
+        part.text.trim() !== ""
+        ? [{ kind: "message", text: part.text }]
         : []
     })
   }
@@ -97,7 +109,7 @@ export const parseClaudeLine: ParseAgentLine = (line) => {
       ? []
       : [
           {
-            kind: 'usage',
+            kind: "usage",
             tokens: sumTokens([
               event.usage.input_tokens,
               event.usage.cache_creation_input_tokens,
@@ -106,62 +118,87 @@ export const parseClaudeLine: ParseAgentLine = (line) => {
             ]),
           },
         ]
-  if (event.subtype === 'success' && event.is_error !== true) {
-    return [...usage, { kind: 'completed', text: event.result ?? null }]
+  if (event.subtype === "success" && event.is_error !== true) {
+    return [...usage, { kind: "completed", text: event.result ?? null }]
   }
 
   return [
     ...usage,
-    { kind: 'error', message: `Claude Code ended with ${event.subtype}${event.result ? `: ${event.result}` : ''}` },
+    {
+      kind: "error",
+      message: `Claude Code ended with ${event.subtype}${event.result ? `: ${event.result}` : ""}`,
+    },
   ]
 }
 
-const codexEventSchema = z.discriminatedUnion('type', [
-  z.object({ type: z.literal('thread.started'), thread_id: z.string() }),
+const codexEventSchema = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("thread.started"), thread_id: z.string() }),
   z.object({
-    type: z.literal('item.started'),
+    type: z.literal("item.started"),
     item: z.object({ type: z.string(), command: z.string().optional() }),
   }),
   z.object({
-    type: z.literal('item.completed'),
+    type: z.literal("item.completed"),
     item: z.object({ type: z.string(), text: z.string().optional() }),
   }),
   z.object({
-    type: z.literal('turn.completed'),
-    usage: z.object({ input_tokens: z.number().optional(), output_tokens: z.number().optional() }).optional(),
+    type: z.literal("turn.completed"),
+    usage: z
+      .object({
+        input_tokens: z.number().optional(),
+        output_tokens: z.number().optional(),
+      })
+      .optional(),
   }),
-  z.object({ type: z.literal('turn.failed'), error: z.object({ message: z.string() }) }),
-  z.object({ type: z.literal('error'), message: z.string() }),
+  z.object({
+    type: z.literal("turn.failed"),
+    error: z.object({ message: z.string() }),
+  }),
+  z.object({ type: z.literal("error"), message: z.string() }),
 ])
 
 // Codex `exec --json`. The final answer is the last agent message before `turn.completed`.
-export const parseCodexLine: ParseAgentLine = (line) => {
+export const parseCodexLine: ParseAgentLine = line => {
   const parsed = codexEventSchema.safeParse(parseJson(line))
   if (!parsed.success) {
     return []
   }
   const event = parsed.data
   switch (event.type) {
-    case 'thread.started':
-      return [{ kind: 'session', sessionId: event.thread_id }]
-    case 'item.started':
-      return event.item.type === 'command_execution' ? [{ kind: 'read', target: event.item.command ?? '' }] : []
-    case 'item.completed':
-      return event.item.type === 'agent_message' && event.item.text !== undefined && event.item.text.trim() !== ''
-        ? [{ kind: 'message', text: event.item.text }]
+    case "thread.started":
+      return [{ kind: "session", sessionId: event.thread_id }]
+    case "item.started":
+      return event.item.type === "command_execution"
+        ? [{ kind: "read", target: event.item.command ?? "" }]
+        : []
+    case "item.completed":
+      return event.item.type === "agent_message" &&
+        event.item.text !== undefined &&
+        event.item.text.trim() !== ""
+        ? [{ kind: "message", text: event.item.text }]
         : []
     // Codex counts cached input inside `input_tokens`.
-    case 'turn.completed':
+    case "turn.completed":
       return [
         ...(event.usage === undefined
           ? []
-          : [{ kind: 'usage', tokens: sumTokens([event.usage.input_tokens, event.usage.output_tokens]) } as const]),
-        { kind: 'completed', text: null },
+          : [
+              {
+                kind: "usage",
+                tokens: sumTokens([
+                  event.usage.input_tokens,
+                  event.usage.output_tokens,
+                ]),
+              } as const,
+            ]),
+        { kind: "completed", text: null },
       ]
-    case 'turn.failed':
-      return [{ kind: 'error', message: `Codex turn failed: ${event.error.message}` }]
-    case 'error':
-      return [{ kind: 'error', message: `Codex error: ${event.message}` }]
+    case "turn.failed":
+      return [
+        { kind: "error", message: `Codex turn failed: ${event.error.message}` },
+      ]
+    case "error":
+      return [{ kind: "error", message: `Codex error: ${event.message}` }]
   }
 }
 
@@ -183,25 +220,35 @@ const copilotEventSchema = z.object({
 // The report is the `final_answer` message; deltas, reasoning and messages between tool calls are not.
 // Only the CLI `result` ends a run: `turn_end` and `idle` also come between tool calls.
 // No token total was seen in the CLI output, so usage stays unknown.
-export const parseCopilotLine: ParseAgentLine = (line) => {
+export const parseCopilotLine: ParseAgentLine = line => {
   const parsed = copilotEventSchema.safeParse(parseJson(line))
   if (!parsed.success || parsed.data.data?.parentToolCallId !== undefined) {
     return []
   }
   const { type, sessionId, exitCode, data } = parsed.data
   switch (type) {
-    case 'assistant.message':
-      return data?.phase === 'final_answer' && data.content?.trim() ? [{ kind: 'message', text: data.content }] : []
-    case 'tool.execution_start':
-      return [{ kind: 'read', target: `${data?.toolName ?? ''} ${describeToolInput(data?.arguments ?? {})}`.trim() }]
-    case 'result':
+    case "assistant.message":
+      return data?.phase === "final_answer" && data.content?.trim()
+        ? [{ kind: "message", text: data.content }]
+        : []
+    case "tool.execution_start":
       return [
-        ...(sessionId === undefined ? [] : [{ kind: 'session', sessionId } as const]),
+        {
+          kind: "read",
+          target:
+            `${data?.toolName ?? ""} ${describeToolInput(data?.arguments ?? {})}`.trim(),
+        },
+      ]
+    case "result":
+      return [
+        ...(sessionId === undefined
+          ? []
+          : [{ kind: "session", sessionId } as const]),
         exitCode === 0
-          ? { kind: 'completed', text: null }
+          ? { kind: "completed", text: null }
           : {
-              kind: 'error',
-              message: `Copilot exited with code ${exitCode ?? 'unknown'}. Check Copilot usage limits.`,
+              kind: "error",
+              message: `Copilot exited with code ${exitCode ?? "unknown"}. Check Copilot usage limits.`,
             },
       ]
     default:
@@ -219,7 +266,7 @@ const copilotUsageSchema = z.object({
 })
 
 // The session total already includes all model calls; do not add per-model totals again.
-export const parseCopilotUsage: ParseAgentLine = (text) => {
+export const parseCopilotUsage: ParseAgentLine = text => {
   const parsed = copilotUsageSchema.safeParse(parseJson(text))
   if (!parsed.success) {
     return []
@@ -228,7 +275,7 @@ export const parseCopilotUsage: ParseAgentLine = (text) => {
 
   return [
     {
-      kind: 'usage',
+      kind: "usage",
       tokens: sumTokens([
         details.input.tokenCount,
         details.output.tokenCount,

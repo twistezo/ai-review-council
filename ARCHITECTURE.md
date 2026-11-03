@@ -55,6 +55,7 @@ CLI options + wizard
 
 - [`scope/`](src/scope) resolves the review scope; [`review/`](src/review) prepares inputs, coordinates agents and handles reports.
 - [`instructions/`](src/instructions) assembles each agent's rules; [`execution/`](src/execution) runs the CLI processes and handles progress, timeouts and cancellation.
+- [`platform/`](src/platform) picks the copy, paste and open tools for macOS or desktop Linux; add a platform there.
 - The diff is frozen; agents read current repository files. Reviewers do not see each other's reports; the council receives their results and failures.
 
 ## Agent permissions

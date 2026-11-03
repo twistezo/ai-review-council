@@ -1,11 +1,16 @@
-import { Box, Text, useInput } from 'ink'
-import type { JSX } from 'react'
-import { useEffect, useState } from 'react'
+import { Box, Text, useInput } from "ink"
+import type { JSX } from "react"
+import { useEffect, useState } from "react"
 
-import type { CheckState, PreflightCheck, PreflightDependencies, PreflightResult } from '../../preflight/run-preflight.js'
-import { runPreflight } from '../../preflight/run-preflight.js'
-import { StepFrame } from '../components/step-frame.js'
-import { theme } from '../theme.js'
+import type {
+  CheckState,
+  PreflightCheck,
+  PreflightDependencies,
+  PreflightResult,
+} from "../../preflight/run-preflight.js"
+import { runPreflight } from "../../preflight/run-preflight.js"
+import { StepFrame } from "../components/step-frame.js"
+import { theme } from "../theme.js"
 
 type PreflightStepProps = {
   dependencies: PreflightDependencies
@@ -21,25 +26,36 @@ const stateMarks: Record<CheckState, JSX.Element> = {
 }
 
 // One line under the app title once the checks passed.
-export const RequirementsLine = ({ checks }: { checks: readonly PreflightCheck[] }): JSX.Element => (
+export const RequirementsLine = ({
+  checks,
+}: {
+  checks: readonly PreflightCheck[]
+}): JSX.Element => (
   <Text wrap="truncate-end">
     {checks
-      .filter((check) => check.label !== 'Instructions' || check.state !== 'ok')
+      .filter(check => check.label !== "Instructions" || check.state !== "ok")
       .map((check, index) => (
         <Text key={check.label}>
           {index > 0 && <Text dimColor> · </Text>}
-          {stateMarks[check.state]} <Text dimColor={check.state === 'ok'}>{check.label}</Text>
-          {check.state !== 'ok' && <Text color={theme.warning}> ({check.detail})</Text>}
+          {stateMarks[check.state]}{" "}
+          <Text dimColor={check.state === "ok"}>{check.label}</Text>
+          {check.state !== "ok" && (
+            <Text color={theme.warning}> ({check.detail})</Text>
+          )}
         </Text>
       ))}
   </Text>
 )
 
-export const PreflightStep = ({ dependencies, onPassed, onBlocked }: PreflightStepProps): JSX.Element => {
+export const PreflightStep = ({
+  dependencies,
+  onPassed,
+  onBlocked,
+}: PreflightStepProps): JSX.Element => {
   const [result, setResult] = useState<PreflightResult | null>(null)
 
   useEffect(() => {
-    void runPreflight(dependencies).then((checked) => {
+    void runPreflight(dependencies).then(checked => {
       if (checked.blocker === null) {
         onPassed(checked)
       } else {
@@ -63,13 +79,15 @@ export const PreflightStep = ({ dependencies, onPassed, onBlocked }: PreflightSt
 
   return (
     <StepFrame title="Requirements not met" hints="Enter exit">
-      {result.checks.map((check) => (
+      {result.checks.map(check => (
         <Box key={check.label} flexDirection="column">
           <Text>
             {stateMarks[check.state]} {check.label}
             <Text dimColor> {check.detail}</Text>
           </Text>
-          {check.fix !== null && <Text color={theme.warning}>  Fix: {check.fix}</Text>}
+          {check.fix !== null && (
+            <Text color={theme.warning}> Fix: {check.fix}</Text>
+          )}
         </Box>
       ))}
       <Box marginTop={1}>

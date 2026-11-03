@@ -2,6 +2,19 @@
 
 All notable changes to this project. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## 3.1.0 - 2026-11-03
+
+### Added
+
+- Desktop Linux support (Wayland or X11): copy and paste use `wl-copy` / `wl-paste`, then `xclip` or `xsel`; the report opens with `xdg-open`. Windows, WSL and Linux without a display are not supported.
+- `npm run format` formats the repository with Prettier.
+
+### Changed
+
+- The prompt hint reads `Ctrl+V paste`, which works on both platforms.
+- An opener still running after 5 s counts as opened, so the report action no longer waits for the viewer to close.
+- Source follows Prettier's defaults, except no semicolons and no parentheses around a single arrow function parameter.
+
 ## 3.0.1 - 2026-11-03
 
 ### Fixed
@@ -309,4 +322,3 @@ All notable changes to this project. The format follows [Keep a Changelog](https
 - Project folder input with `~`, pasted paths and `Tab` completion.
 - Review scope from uncommitted changes or from a commit hash, with staged, unstaged and new files.
 - The confirmed configuration is printed as JSON; no agents are started yet.
-

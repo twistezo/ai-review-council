@@ -1,16 +1,22 @@
-import { Box, Text } from 'ink'
-import type { JSX } from 'react'
-import { useEffect, useState } from 'react'
+import { Box, Text } from "ink"
+import type { JSX } from "react"
+import { useEffect, useState } from "react"
 
-import type { ReviewScope, ReviewScopeKind } from '../../domain/review-session.js'
-import type { GitRepository, RepositoryState } from '../../git/git-repository.js'
-import type { ScopeRequest } from '../../scope/build-review-scope.js'
-import { buildReviewScope } from '../../scope/build-review-scope.js'
-import { SelectList } from '../components/select-list.js'
-import { ErrorText, StepFrame } from '../components/step-frame.js'
-import { TextInput } from '../components/text-input.js'
-import { theme } from '../theme.js'
-import { useIsMounted } from '../use-is-mounted.js'
+import type {
+  ReviewScope,
+  ReviewScopeKind,
+} from "../../domain/review-session.js"
+import type {
+  GitRepository,
+  RepositoryState,
+} from "../../git/git-repository.js"
+import type { ScopeRequest } from "../../scope/build-review-scope.js"
+import { buildReviewScope } from "../../scope/build-review-scope.js"
+import { SelectList } from "../components/select-list.js"
+import { ErrorText, StepFrame } from "../components/step-frame.js"
+import { TextInput } from "../components/text-input.js"
+import { theme } from "../theme.js"
+import { useIsMounted } from "../use-is-mounted.js"
 
 type ScopeStepProps = {
   git: GitRepository
@@ -23,18 +29,18 @@ type ScopeStepProps = {
   onBack?: () => void
 }
 
-type ScopeView = 'kind' | 'commit' | 'loading'
+type ScopeView = "kind" | "commit" | "loading"
 
 const kindLabels: Record<ReviewScopeKind, string> = {
-  uncommitted: 'Uncommitted only',
-  'since-commit': 'Since commit',
-  full: 'Entire codebase',
+  uncommitted: "Uncommitted only",
+  "since-commit": "Since commit",
+  full: "Entire codebase",
 }
 
 const hints: Record<ScopeView, string> = {
-  kind: '↑↓ row · Enter confirm',
-  commit: 'Enter confirm',
-  loading: 'Reading changes',
+  kind: "↑↓ row · Enter confirm",
+  commit: "Enter confirm",
+  loading: "Reading changes",
 }
 
 export const ScopeStep = ({
@@ -46,14 +52,19 @@ export const ScopeStep = ({
   onPresetFailed,
   onBack,
 }: ScopeStepProps): JSX.Element => {
-  const [view, setView] = useState<ScopeView>(preset === null ? 'kind' : 'loading')
-  const [commitRef, setCommitRef] = useState(preset?.kind === 'since-commit' ? preset.commitRef : '')
+  const [view, setView] = useState<ScopeView>(
+    preset === null ? "kind" : "loading",
+  )
+  const [commitRef, setCommitRef] = useState(
+    preset?.kind === "since-commit" ? preset.commitRef : "",
+  )
   const [error, setError] = useState<string | null>(null)
   const isMounted = useIsMounted()
 
   const load = async (request: ScopeRequest): Promise<boolean> => {
-    const previousView: ScopeView = request.kind === 'since-commit' ? 'commit' : 'kind'
-    setView('loading')
+    const previousView: ScopeView =
+      request.kind === "since-commit" ? "commit" : "kind"
+    setView("loading")
     setError(null)
     try {
       const result = await buildReviewScope(git, repository.root, request)
@@ -79,7 +90,7 @@ export const ScopeStep = ({
 
   useEffect(() => {
     if (preset !== null) {
-      void load(preset).then((succeeded) => {
+      void load(preset).then(succeeded => {
         if (!succeeded && isMounted()) {
           onPresetFailed()
         }
@@ -89,48 +100,50 @@ export const ScopeStep = ({
   }, [])
 
   const goBack =
-    view === 'commit'
+    view === "commit"
       ? (): void => {
           setError(null)
-          setView('kind')
+          setView("kind")
         }
       : onBack
 
   return (
     <StepFrame title="Review scope" hints={hints[view]} onBack={goBack}>
-      {view === 'kind' && (
+      {view === "kind" && (
         <SelectList
           items={[
-            { key: 'uncommitted', label: kindLabels.uncommitted },
-            { key: 'since-commit', label: kindLabels['since-commit'] },
-            { key: 'full', label: kindLabels.full },
+            { key: "uncommitted", label: kindLabels.uncommitted },
+            { key: "since-commit", label: kindLabels["since-commit"] },
+            { key: "full", label: kindLabels.full },
           ]}
           initialKey={initialKind}
-          onSelect={(key) => {
-            if (key === 'uncommitted' || key === 'full') {
+          onSelect={key => {
+            if (key === "uncommitted" || key === "full") {
               void load({ kind: key })
             } else {
               setError(null)
-              setView('commit')
+              setView("commit")
             }
           }}
         />
       )}
-      {view === 'commit' && (
+      {view === "commit" && (
         <Box flexDirection="column">
           <Text>Changes after this commit, uncommitted included:</Text>
           <TextInput
             value={commitRef}
-            onChange={(update) => {
+            onChange={update => {
               setCommitRef(update)
               setError(null)
             }}
-            onSubmit={() => void load({ kind: 'since-commit', commitRef })}
+            onSubmit={() => void load({ kind: "since-commit", commitRef })}
             placeholder="short or full hash, e.g. a1b2c3d"
           />
         </Box>
       )}
-      {view === 'loading' && <Text color={theme.warning}>Reading changes…</Text>}
+      {view === "loading" && (
+        <Text color={theme.warning}>Reading changes…</Text>
+      )}
       <ErrorText message={error} />
     </StepFrame>
   )

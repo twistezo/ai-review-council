@@ -1,13 +1,13 @@
-import { spawn } from 'node:child_process'
+import type { CommandLine } from "../platform/desktop-commands.js"
+import { firstWorking } from "../platform/desktop-commands.js"
+import type { PipeToCommand } from "../process/pipe-to-command.js"
 
 export type WriteClipboard = (text: string) => Promise<boolean>
 
-// macOS clipboard through `pbcopy`; false when it could not be written.
-export const writeClipboard: WriteClipboard = (text) =>
-  new Promise((resolve) => {
-    const child = spawn('pbcopy', [], { stdio: ['pipe', 'ignore', 'ignore'] })
-    child.on('error', () => resolve(false))
-    child.on('close', (exitCode) => resolve(exitCode === 0))
-    child.stdin.on('error', () => undefined)
-    child.stdin.end(text)
-  })
+// The first copy tool that works; false when none could write the clipboard.
+export const createClipboardWriter =
+  (pipe: PipeToCommand, candidates: readonly CommandLine[]): WriteClipboard =>
+  async text =>
+    (await firstWorking(candidates, async candidate =>
+      (await pipe(candidate, text)) ? true : null,
+    )) ?? false

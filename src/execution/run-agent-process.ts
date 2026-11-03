@@ -1,12 +1,13 @@
-import { readFileSync } from 'node:fs'
-import { spawn } from 'node:child_process'
-import { createInterface } from 'node:readline'
+import { readFileSync } from "node:fs"
+import { spawn } from "node:child_process"
+import { createInterface } from "node:readline"
 
-import type { AgentEvent, ParseAgentLine } from './agent-events.js'
-import type { AgentProcessSpec } from './agent-commands.js'
+import type { AgentEvent, ParseAgentLine } from "./agent-events.js"
+import type { AgentProcessSpec } from "./agent-commands.js"
 
 export type AgentRunResult =
-  { ok: true; report: string; sessionId: string | null } | { ok: false; error: string; sessionId: string | null }
+  | { ok: true; report: string; sessionId: string | null }
+  | { ok: false; error: string; sessionId: string | null }
 
 export type RunAgentOptions = {
   timeoutMs: number
@@ -33,7 +34,7 @@ const killGroup = (pid: number, signal: NodeJS.Signals): void => {
 // Kills every running agent at once and returns how many there were; for exits that cannot wait.
 export const killAllAgents = (): number => {
   const count = runningAgents.size
-  runningAgents.forEach((_, pid) => killGroup(pid, 'SIGKILL'))
+  runningAgents.forEach((_, pid) => killGroup(pid, "SIGKILL"))
   runningAgents.clear()
 
   return count
@@ -43,7 +44,7 @@ export const killAllAgents = (): number => {
 export const waitForAgentsToStop = async (timeoutMs: number): Promise<void> => {
   await Promise.race([
     Promise.all(runningAgents.values()),
-    new Promise((resolve) => setTimeout(resolve, timeoutMs).unref()),
+    new Promise(resolve => setTimeout(resolve, timeoutMs).unref()),
   ])
 }
 
@@ -70,24 +71,28 @@ export const runAgentProcess = (
   parseLine: ParseAgentLine,
   { timeoutMs, signal, onEvent }: RunAgentOptions,
 ): Promise<AgentRunResult> =>
-  new Promise((resolve) => {
+  new Promise(resolve => {
     let sessionId: string | null = null
     let lastMessage: string | null = null
     let completedText: string | null = null
     let isCompleted = false
     let agentError: string | null = null
     let stopReason: string | null = null
-    let stderrTail = ''
+    let stderrTail = ""
     let isSettled = false
 
     // A separate process group lets a stop reach the CLI and everything it started.
-    const child = spawn(spec.command, spec.args, { cwd: spec.cwd, stdio: ['pipe', 'pipe', 'pipe'], detached: true })
+    const child = spawn(spec.command, spec.args, {
+      cwd: spec.cwd,
+      stdio: ["pipe", "pipe", "pipe"],
+      detached: true,
+    })
     const pid = child.pid
     let markStopped = (): void => undefined
     if (pid !== undefined) {
       runningAgents.set(
         pid,
-        new Promise<void>((resolveStopped) => {
+        new Promise<void>(resolveStopped => {
           markStopped = resolveStopped
         }),
       )
@@ -99,10 +104,10 @@ export const runAgentProcess = (
       }
       isSettled = true
       clearTimeout(timer)
-      signal?.removeEventListener('abort', cancel)
+      signal?.removeEventListener("abort", cancel)
       if (pid !== undefined) {
         // The CLI is gone, but a process it started may outlive it or ignore SIGTERM; the group goes with it.
-        killGroup(pid, 'SIGKILL')
+        killGroup(pid, "SIGKILL")
         runningAgents.delete(pid)
       }
       markStopped()
@@ -114,58 +119,66 @@ export const runAgentProcess = (
         return
       }
       stopReason = reason
-      killGroup(pid, 'SIGTERM')
-      setTimeout(() => killGroup(pid, 'SIGKILL'), killGraceMs).unref()
+      killGroup(pid, "SIGTERM")
+      setTimeout(() => killGroup(pid, "SIGKILL"), killGraceMs).unref()
     }
 
-    const timer = setTimeout(() => stop(`Timed out after ${formatDuration(timeoutMs)}`), timeoutMs)
+    const timer = setTimeout(
+      () => stop(`Timed out after ${formatDuration(timeoutMs)}`),
+      timeoutMs,
+    )
     const cancel = (): void => {
       if (stopReason === null) {
         cancelledCount += 1
       }
-      stop('Cancelled')
+      stop("Cancelled")
     }
     if (signal?.aborted) {
       cancel()
     }
-    signal?.addEventListener('abort', cancel)
+    signal?.addEventListener("abort", cancel)
 
-    child.stdin.on('error', () => undefined)
+    child.stdin.on("error", () => undefined)
     child.stdin.end(spec.stdin)
-    child.stderr.setEncoding('utf8').on('data', (chunk: string) => {
+    child.stderr.setEncoding("utf8").on("data", (chunk: string) => {
       stderrTail = (stderrTail + chunk).slice(-stderrTailLength)
     })
 
-    createInterface({ input: child.stdout }).on('line', (line) => {
+    createInterface({ input: child.stdout }).on("line", line => {
       for (const event of parseLine(line)) {
-        if (event.kind === 'session') {
+        if (event.kind === "session") {
           sessionId = event.sessionId
-        } else if (event.kind === 'message') {
+        } else if (event.kind === "message") {
           lastMessage = event.text
-        } else if (event.kind === 'completed') {
+        } else if (event.kind === "completed") {
           isCompleted = true
           completedText = event.text
           // a turn that completes after an error (e.g. a reconnect) has recovered from it
           agentError = null
-        } else if (event.kind === 'error') {
+        } else if (event.kind === "error") {
           agentError ??= event.message
         }
         onEvent?.(event)
       }
     })
 
-    child.on('error', (error: NodeJS.ErrnoException) => {
+    child.on("error", (error: NodeJS.ErrnoException) => {
       settle({
         ok: false,
-        error: error.code === 'ENOENT' ? `\`${spec.command}\` was not found in PATH` : error.message,
+        error:
+          error.code === "ENOENT"
+            ? `\`${spec.command}\` was not found in PATH`
+            : error.message,
         sessionId,
       })
     })
 
-    child.on('close', (exitCode) => {
+    child.on("close", exitCode => {
       if (spec.usageFile !== undefined) {
         try {
-          for (const event of spec.usageFile.parse(readFileSync(spec.usageFile.path, 'utf8'))) {
+          for (const event of spec.usageFile.parse(
+            readFileSync(spec.usageFile.path, "utf8"),
+          )) {
             onEvent?.(event)
           }
         } catch {
@@ -183,9 +196,10 @@ export const runAgentProcess = (
         return
       }
       // an empty final text falls back to the last message
-      const completedReport = completedText?.trim() ?? ''
-      const report = completedReport === '' ? (lastMessage ?? '').trim() : completedReport
-      if (isCompleted && report !== '') {
+      const completedReport = completedText?.trim() ?? ""
+      const report =
+        completedReport === "" ? (lastMessage ?? "").trim() : completedReport
+      if (isCompleted && report !== "") {
         settle({ ok: true, report, sessionId })
 
         return
@@ -194,8 +208,8 @@ export const runAgentProcess = (
       settle({
         ok: false,
         error: isCompleted
-          ? 'The agent finished without a report'
-          : `\`${spec.command}\` exited with code ${exitCode} before finishing${details === '' ? '' : `: ${details}`}`,
+          ? "The agent finished without a report"
+          : `\`${spec.command}\` exited with code ${exitCode} before finishing${details === "" ? "" : `: ${details}`}`,
         sessionId,
       })
     })

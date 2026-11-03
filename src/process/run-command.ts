@@ -1,6 +1,6 @@
-import { spawn } from 'node:child_process'
+import { spawn } from "node:child_process"
 
-type CommandFailure = 'not-found' | 'timeout' | 'spawn-error'
+type CommandFailure = "not-found" | "timeout" | "spawn-error"
 
 export type CommandResult = {
   exitCode: number | null
@@ -26,39 +26,42 @@ const killGraceMs = 2_000
 
 // Arguments are passed as an array, never through a shell.
 export const runCommand: RunCommand = (command, args, options = {}) =>
-  new Promise((resolve) => {
-    const child = spawn(command, [...args], { cwd: options.cwd, stdio: ['ignore', 'pipe', 'pipe'] })
-    let stdout = ''
-    let stderr = ''
+  new Promise(resolve => {
+    const child = spawn(command, [...args], {
+      cwd: options.cwd,
+      stdio: ["ignore", "pipe", "pipe"],
+    })
+    let stdout = ""
+    let stderr = ""
     let failure: CommandFailure | null = null
 
     let killTimer: NodeJS.Timeout | undefined
     const timer = setTimeout(() => {
-      failure = 'timeout'
-      child.kill('SIGTERM')
-      killTimer = setTimeout(() => child.kill('SIGKILL'), killGraceMs)
+      failure = "timeout"
+      child.kill("SIGTERM")
+      killTimer = setTimeout(() => child.kill("SIGKILL"), killGraceMs)
     }, options.timeoutMs ?? defaultTimeoutMs)
     const clearTimers = (): void => {
       clearTimeout(timer)
       clearTimeout(killTimer)
     }
 
-    child.stdout.setEncoding('utf8').on('data', (chunk: string) => {
+    child.stdout.setEncoding("utf8").on("data", (chunk: string) => {
       stdout += chunk
     })
-    child.stderr.setEncoding('utf8').on('data', (chunk: string) => {
+    child.stderr.setEncoding("utf8").on("data", (chunk: string) => {
       stderr += chunk
     })
-    child.on('error', (error: NodeJS.ErrnoException) => {
+    child.on("error", (error: NodeJS.ErrnoException) => {
       clearTimers()
       resolve({
         exitCode: null,
         stdout,
         stderr: error.message,
-        failure: error.code === 'ENOENT' ? 'not-found' : 'spawn-error',
+        failure: error.code === "ENOENT" ? "not-found" : "spawn-error",
       })
     })
-    child.on('close', (exitCode) => {
+    child.on("close", exitCode => {
       clearTimers()
       resolve({ exitCode, stdout, stderr, failure })
     })

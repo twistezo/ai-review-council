@@ -1,9 +1,9 @@
-import { Box, Text } from 'ink'
-import type { JSX } from 'react'
-import { useState } from 'react'
+import { Box, Text } from "ink"
+import type { JSX } from "react"
+import { useState } from "react"
 
-import { MultilineInput } from '../components/multiline-input.js'
-import { StepFrame } from '../components/step-frame.js'
+import { MultilineInput } from "../components/multiline-input.js"
+import { StepFrame } from "../components/step-frame.js"
 
 type PromptStepProps = {
   value: string
@@ -14,17 +14,24 @@ type PromptStepProps = {
   onBack?: (prompt: string) => void
 }
 
-export const PromptStep = ({ value, readClipboard, onSubmit, onBack }: PromptStepProps): JSX.Element => {
+export const PromptStep = ({
+  value,
+  readClipboard,
+  onSubmit,
+  onBack,
+}: PromptStepProps): JSX.Element => {
   const [prompt, setPrompt] = useState(value)
 
   return (
     <StepFrame
       title="Review prompt"
-      hints="Enter newline · Ctrl+D confirm · Cmd+V paste"
+      hints="Enter newline · Ctrl+D confirm · Ctrl+V paste"
       onBack={onBack && ((): void => onBack(prompt))}
     >
       <Box flexDirection="column" marginBottom={1}>
-        <Text dimColor>Review context, goals and skills. Shared by all agents.</Text>
+        <Text dimColor>
+          Review context, goals and skills. Shared by all agents.
+        </Text>
         <Text dimColor>Read-only local review. No live web access.</Text>
       </Box>
       <MultilineInput

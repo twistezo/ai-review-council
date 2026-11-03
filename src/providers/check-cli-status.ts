@@ -1,7 +1,7 @@
-import type { ProviderId } from '../domain/review-session.js'
-import type { RunCommand } from '../process/run-command.js'
-import { isSuccessful } from '../process/run-command.js'
-import type { ProviderStatus } from './provider-adapter.js'
+import type { ProviderId } from "../domain/review-session.js"
+import type { RunCommand } from "../process/run-command.js"
+import { isSuccessful } from "../process/run-command.js"
+import type { ProviderStatus } from "./provider-adapter.js"
 
 type CliStatusCheck = {
   provider: ProviderId
@@ -13,10 +13,13 @@ type CliStatusCheck = {
 }
 
 // Reads the existing CLI login only; never starts a login flow.
-export const checkCliStatus = async (run: RunCommand, check: CliStatusCheck): Promise<ProviderStatus> => {
-  const versionArgs = check.versionArgs ?? ['--version']
+export const checkCliStatus = async (
+  run: RunCommand,
+  check: CliStatusCheck,
+): Promise<ProviderStatus> => {
+  const versionArgs = check.versionArgs ?? ["--version"]
   const versionResult = await run(check.command, versionArgs)
-  if (versionResult.failure === 'not-found') {
+  if (versionResult.failure === "not-found") {
     return {
       provider: check.provider,
       version: null,
@@ -25,14 +28,19 @@ export const checkCliStatus = async (run: RunCommand, check: CliStatusCheck): Pr
     }
   }
   if (!isSuccessful(versionResult)) {
-    const command = `\`${check.command} ${versionArgs.join(' ')}\``
+    const command = `\`${check.command} ${versionArgs.join(" ")}\``
     const details = versionResult.stderr.trim()
     const reason =
-      versionResult.failure === 'timeout'
-        ? 'timed out'
-        : `failed${details === '' ? ` with exit code ${versionResult.exitCode}` : `: ${details}`}`
+      versionResult.failure === "timeout"
+        ? "timed out"
+        : `failed${details === "" ? ` with exit code ${versionResult.exitCode}` : `: ${details}`}`
 
-    return { provider: check.provider, version: null, problem: `${command} ${reason}`, fix: check.installFix }
+    return {
+      provider: check.provider,
+      version: null,
+      problem: `${command} ${reason}`,
+      fix: check.installFix,
+    }
   }
   const version = versionResult.stdout.trim()
   if (check.loginStatusArgs === null) {
@@ -40,7 +48,12 @@ export const checkCliStatus = async (run: RunCommand, check: CliStatusCheck): Pr
   }
   const loginResult = await run(check.command, check.loginStatusArgs)
   if (!isSuccessful(loginResult)) {
-    return { provider: check.provider, version, problem: 'Provider is unavailable.', fix: null }
+    return {
+      provider: check.provider,
+      version,
+      problem: "Provider is unavailable.",
+      fix: null,
+    }
   }
 
   return { provider: check.provider, version, problem: null, fix: null }

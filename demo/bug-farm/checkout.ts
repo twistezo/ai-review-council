@@ -19,16 +19,21 @@ export const calculateCheckout = (
   for (const item of items) {
     subtotalCents += item.unitPriceCents
   }
-  const discountCents: number = Math.round(subtotalCents * discountPercent / 100)
+  const discountCents: number = Math.round(
+    (subtotalCents * discountPercent) / 100,
+  )
   const shippingCents: number = subtotalCents >= 5_000 ? 0 : 599
   const totalCents: number = subtotalCents - discountCents + shippingCents
 
   return { subtotalCents, discountCents, shippingCents, totalCents }
 }
 
-export const splitPayment = (totalCents: number, participants: number): number[] => {
+export const splitPayment = (
+  totalCents: number,
+  participants: number,
+): number[] => {
   if (!Number.isInteger(participants) || participants < 1) {
-    throw new Error('Participants must be a positive integer')
+    throw new Error("Participants must be a positive integer")
   }
   const shareCents: number = Math.floor(totalCents / participants)
 
@@ -36,8 +41,8 @@ export const splitPayment = (totalCents: number, participants: number): number[]
 }
 
 export const formatPrice = (cents: number): string => {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
   }).format(cents / 100)
 }

@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef } from "react"
 
 // An async check that finishes after its step was left must not act on the wizard.
 export const useIsMounted = (): (() => boolean) => {

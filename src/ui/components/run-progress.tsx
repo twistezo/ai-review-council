@@ -1,11 +1,28 @@
-import { Box, Text, useAnimation, useWindowSize } from 'ink'
-import type { JSX } from 'react'
+import { Box, Text, useAnimation, useWindowSize } from "ink"
+import type { JSX } from "react"
 
-import type { RunRow, StatusTone } from '../run-progress.js'
-import { describeStatus, formatElapsed, isRunFinished, phaseTones, sortRunRows } from '../run-progress.js'
-import { theme } from '../theme.js'
+import type { RunRow, StatusTone } from "../run-progress.js"
+import {
+  describeStatus,
+  formatElapsed,
+  isRunFinished,
+  phaseTones,
+  sortRunRows,
+} from "../run-progress.js"
+import { theme } from "../theme.js"
 
-const spinnerFrames = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'] as const
+const spinnerFrames = [
+  "⠋",
+  "⠙",
+  "⠹",
+  "⠸",
+  "⠼",
+  "⠴",
+  "⠦",
+  "⠧",
+  "⠇",
+  "⠏",
+] as const
 const spinnerIntervalMs = 80
 
 const toneColors: Record<StatusTone, string> = {
@@ -15,10 +32,10 @@ const toneColors: Record<StatusTone, string> = {
   failure: theme.failure,
 }
 
-const toneMarks: Record<Exclude<StatusTone, 'active'>, string> = {
-  pending: '○',
-  success: '✔',
-  failure: '✘',
+const toneMarks: Record<Exclude<StatusTone, "active">, string> = {
+  pending: "○",
+  success: "✔",
+  failure: "✘",
 }
 
 const columnGap = 2
@@ -40,23 +57,57 @@ type ColumnWidths = {
 }
 
 const fitColumn = (title: string, values: readonly string[]): number =>
-  Math.max(title.length, ...values.map((value) => value.length)) + columnGap
+  Math.max(title.length, ...values.map(value => value.length)) + columnGap
 
 // Every column has a fixed width so no line wraps; the status, then the model, shrink to fit the window.
-export const columnWidths = (rows: readonly RunRow[], windowColumns: number): ColumnWidths => {
-  const provider = fitColumn('Provider', rows.map((row) => row.provider))
-  const effort = fitColumn('Effort', rows.map((row) => row.effort))
-  const review = fitColumn('Review', rows.map((row) => row.review))
-  const modelWanted = fitColumn('Model', rows.map((row) => row.model))
-  const available = windowColumns - outerPadding - indentWidth - provider - effort - review - timeWidth
-  const status = Math.max(minStatusWidth, Math.min(maxStatusWidth, available - modelWanted))
-  const model = Math.max(minModelWidth, Math.min(modelWanted, available - status))
+export const columnWidths = (
+  rows: readonly RunRow[],
+  windowColumns: number,
+): ColumnWidths => {
+  const provider = fitColumn(
+    "Provider",
+    rows.map(row => row.provider),
+  )
+  const effort = fitColumn(
+    "Effort",
+    rows.map(row => row.effort),
+  )
+  const review = fitColumn(
+    "Review",
+    rows.map(row => row.review),
+  )
+  const modelWanted = fitColumn(
+    "Model",
+    rows.map(row => row.model),
+  )
+  const available =
+    windowColumns -
+    outerPadding -
+    indentWidth -
+    provider -
+    effort -
+    review -
+    timeWidth
+  const status = Math.max(
+    minStatusWidth,
+    Math.min(maxStatusWidth, available - modelWanted),
+  )
+  const model = Math.max(
+    minModelWidth,
+    Math.min(modelWanted, available - status),
+  )
 
   return { provider, model, effort, review, status }
 }
 
 const tableWidth = (widths: ColumnWidths): number =>
-  indentWidth + widths.provider + widths.model + widths.effort + widths.review + widths.status + timeWidth
+  indentWidth +
+  widths.provider +
+  widths.model +
+  widths.effort +
+  widths.review +
+  widths.status +
+  timeWidth
 
 type RunProgressViewProps = {
   rows: readonly RunRow[]
@@ -112,10 +163,15 @@ const Cells = ({
 )
 
 // Static render for a given moment; `RunProgress` drives it live.
-export const RunProgressView = ({ rows: unsortedRows, now, frame, windowColumns }: RunProgressViewProps): JSX.Element => {
+export const RunProgressView = ({
+  rows: unsortedRows,
+  now,
+  frame,
+  windowColumns,
+}: RunProgressViewProps): JSX.Element => {
   const rows = sortRunRows(unsortedRows)
   const widths = columnWidths(rows, windowColumns)
-  const spinner = spinnerFrames[frame % spinnerFrames.length] ?? '•'
+  const spinner = spinnerFrames[frame % spinnerFrames.length] ?? "•"
 
   return (
     <Box flexDirection="column">
@@ -132,13 +188,18 @@ export const RunProgressView = ({ rows: unsortedRows, now, frame, windowColumns 
       <Box height={1} />
       {rows.map((row, index) => {
         const tone = phaseTones[row.progress.phase]
-        const mark = tone === 'active' ? spinner : toneMarks[tone]
-        const startsCouncil = row.isCouncil && index > 0 && rows[index - 1]?.isCouncil === false
+        const mark = tone === "active" ? spinner : toneMarks[tone]
+        const startsCouncil =
+          row.isCouncil && index > 0 && rows[index - 1]?.isCouncil === false
 
         return (
           <Box key={row.id} flexDirection="column">
             {startsCouncil && (
-              <Text dimColor>{'─'.repeat(Math.min(tableWidth(widths), windowColumns - outerPadding))}</Text>
+              <Text dimColor>
+                {"─".repeat(
+                  Math.min(tableWidth(widths), windowColumns - outerPadding),
+                )}
+              </Text>
             )}
             <Cells
               widths={widths}
@@ -161,9 +222,23 @@ export const RunProgressView = ({ rows: unsortedRows, now, frame, windowColumns 
 }
 
 // Ticks while anything runs: spinner frames and elapsed times; follows the window width.
-export const RunProgress = ({ rows }: { rows: readonly RunRow[] }): JSX.Element => {
-  const { frame } = useAnimation({ interval: spinnerIntervalMs, isActive: !isRunFinished(rows) })
+export const RunProgress = ({
+  rows,
+}: {
+  rows: readonly RunRow[]
+}): JSX.Element => {
+  const { frame } = useAnimation({
+    interval: spinnerIntervalMs,
+    isActive: !isRunFinished(rows),
+  })
   const { columns } = useWindowSize()
 
-  return <RunProgressView rows={rows} now={Date.now()} frame={frame} windowColumns={columns} />
+  return (
+    <RunProgressView
+      rows={rows}
+      now={Date.now()}
+      frame={frame}
+      windowColumns={columns}
+    />
+  )
 }

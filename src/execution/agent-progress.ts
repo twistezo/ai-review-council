@@ -1,7 +1,8 @@
-import type { AgentEvent } from './agent-events.js'
+import type { AgentEvent } from "./agent-events.js"
 
 // General phases only; individual tool calls are counted, never listed.
-export type AgentPhase = 'waiting' | 'starting' | 'reading' | 'writing' | 'done' | 'failed'
+export type AgentPhase =
+  "waiting" | "starting" | "reading" | "writing" | "done" | "failed"
 
 export type AgentProgress = {
   phase: AgentPhase
@@ -16,7 +17,7 @@ export type AgentProgress = {
 }
 
 export const waitingProgress: AgentProgress = {
-  phase: 'waiting',
+  phase: "waiting",
   reads: 0,
   sessionId: null,
   tokens: null,
@@ -25,20 +26,27 @@ export const waitingProgress: AgentProgress = {
   note: null,
 }
 
-export const startProgress = (now: number): AgentProgress => ({ ...waitingProgress, phase: 'starting', startedAt: now })
+export const startProgress = (now: number): AgentProgress => ({
+  ...waitingProgress,
+  phase: "starting",
+  startedAt: now,
+})
 
-export const applyAgentEvent = (progress: AgentProgress, event: AgentEvent): AgentProgress => {
+export const applyAgentEvent = (
+  progress: AgentProgress,
+  event: AgentEvent,
+): AgentProgress => {
   switch (event.kind) {
-    case 'session':
+    case "session":
       return { ...progress, sessionId: event.sessionId }
-    case 'usage':
+    case "usage":
       return { ...progress, tokens: (progress.tokens ?? 0) + event.tokens }
-    case 'read':
-      return { ...progress, phase: 'reading', reads: progress.reads + 1 }
-    case 'message':
-      return { ...progress, phase: 'writing' }
-    case 'completed':
-    case 'error':
+    case "read":
+      return { ...progress, phase: "reading", reads: progress.reads + 1 }
+    case "message":
+      return { ...progress, phase: "writing" }
+    case "completed":
+    case "error":
       return progress
   }
 }
@@ -47,4 +55,9 @@ export const finishProgress = (
   progress: AgentProgress,
   outcome: { ok: boolean; note: string | null },
   now: number,
-): AgentProgress => ({ ...progress, phase: outcome.ok ? 'done' : 'failed', finishedAt: now, note: outcome.note })
+): AgentProgress => ({
+  ...progress,
+  phase: outcome.ok ? "done" : "failed",
+  finishedAt: now,
+  note: outcome.note,
+})

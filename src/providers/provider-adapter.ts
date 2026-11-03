@@ -1,4 +1,4 @@
-import type { ProviderId } from '../domain/review-session.js'
+import type { ProviderId } from "../domain/review-session.js"
 
 export type ProviderStatus = {
   provider: ProviderId
@@ -23,7 +23,7 @@ export type ProviderAdapter = {
 }
 
 export const providerDisplayNames: Record<ProviderId, string> = {
-  copilot: 'Copilot',
-  codex: 'Codex',
-  claude: 'Claude',
+  copilot: "Copilot",
+  codex: "Codex",
+  claude: "Claude",
 }

@@ -1,5 +1,5 @@
-import { formatPrice } from './checkout.js'
-import type { Order } from './orders.js'
+import { formatPrice } from "./checkout.js"
+import type { Order } from "./orders.js"
 
 type Response = { ok: boolean }
 type CancelRequest = (orderId: string) => Promise<Response>
@@ -7,11 +7,11 @@ type Announce = (message: string) => void
 
 export const escapeHtml = (value: string): string => {
   return value
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#39;')
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;")
 }
 
 export const renderOrderCard = (order: Order, customerNote: string): string => {
@@ -33,13 +33,13 @@ export const submitCancellation = async (
   announce: Announce,
 ): Promise<void> => {
   await request(orderId)
-  announce('Order cancelled successfully')
+  announce("Order cancelled successfully")
 }
 
 export const describeOrderStatus = (order: Order): string => {
-  if (order.status === 'paid') {
-    return 'Payment received'
+  if (order.status === "paid") {
+    return "Payment received"
   }
 
-  return order.status === 'pending' ? 'Awaiting payment' : 'Order cancelled'
+  return order.status === "pending" ? "Awaiting payment" : "Order cancelled"
 }
