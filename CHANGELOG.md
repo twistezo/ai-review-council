@@ -2,6 +2,13 @@
 
 All notable changes to this project. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## Unreleased
+
+### Changed
+
+- Code reviewers check supplied requirements for missing, partial or conflicting behaviour and cite each mismatch.
+- Council instructions require counterevidence for rejected claims and failed reviews and material coverage gaps in the report's opening paragraph.
+
 ## 2.1.0 - 2026-11-02
 
 ### Added
