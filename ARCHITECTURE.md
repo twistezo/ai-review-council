@@ -58,10 +58,6 @@ CLI options + wizard
 - [`platform/`](src/platform) picks the copy, paste and open tools for macOS or desktop Linux; add a platform there.
 - The diff is frozen; agents read current repository files. Reviewers do not see each other's reports; the council receives their results and failures.
 
-## Agent permissions
-
-Agents run unattended with read-only access and restricted tools. Provider-specific launch flags and restrictions live in [`agent-commands.ts`](src/execution/agent-commands.ts).
-
 ## Review instructions
 
 All agents receive [`instructions/common.md`](instructions/common.md), their role and review type (`code`, `security`, `ui-ux`):

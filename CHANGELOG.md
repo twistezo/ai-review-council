@@ -2,6 +2,12 @@
 
 All notable changes to this project. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## Unreleased
+
+### Added
+
+- [Security model](SECURITY.md) with provider permissions, authentication and secret-handling limits, linked from the README and architecture docs.
+
 ## 3.2.0 - 2026-11-03
 
 ### Added

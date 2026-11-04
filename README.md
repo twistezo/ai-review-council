@@ -8,8 +8,9 @@ Similar tools usually bill per token through provider APIs. This one runs locall
 
 Docs:
 
-- [CHANGELOG.md](CHANGELOG.md)
 - [ARCHITECTURE.md](ARCHITECTURE.md)
+- [CHANGELOG.md](CHANGELOG.md)
+- [SECURITY.md](SECURITY.md)
 
 ## Supported Agents
 
@@ -18,8 +19,6 @@ Docs:
 | Codex   | `codex`                  |    ✓     |    ✓    | All    | All     | Codex CLI access                    |
 | Claude  | `claude`                 |    ✓     |    ✓    | All    | All     | Claude Code access                  |
 | Copilot | `copilot` / `gh copilot` |    ✓     |    —    | Auto   | Default | Copilot CLI access (Free supported) |
-
-CLIs must be available on `PATH` and logged in. Usage and availability depend on your plan and organization settings.
 
 ## Demo
 
