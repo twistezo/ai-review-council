@@ -4,9 +4,15 @@ All notable changes to this project. The format follows [Keep a Changelog](https
 
 ## Unreleased
 
+## 3.2.1 - 2026-11-05
+
 ### Added
 
 - [Security model](SECURITY.md) with provider permissions, authentication and secret-handling limits, linked from the README and architecture docs.
+
+### Changed
+
+- Dependency resolution waits seven days after a version is published via `.npmrc` (`npm >=11.10.0` required).
 
 ## 3.2.0 - 2026-11-03
 
